@@ -1,43 +1,68 @@
+
+
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>AR Experience with Babylon.js</title>
-    <script src="https://cdn.babylonjs.com/babylon.js"></script>
-    <script src="https://cdn.babylonjs.com/babylon.max.js"></script>
-    <script src="https://cdn.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
-    <style>
-      body { margin: 0; }
-      canvas { display: none; }
-    </style>
-  </head>
-  <body>
-    <canvas id="renderCanvas"></canvas>
-    <script>
-      const canvas = document.getElementById("renderCanvas");
-      const engine = new BABYLON.Engine(canvas, true);
-      const createScene = function () {
-        const scene = new BABYLON.Scene(engine);
-        const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 2, 5, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
-        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        const box = BABYLON.MeshBuilder.CreateBox("box", {}, scene);
-        box.rotation.y = Math.PI / 4;
-        const text = BABYLON.MeshBuilder.CreatePlane("text", { size: 2 }, scene);
-        const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(text);
-        const label = new BABYLON.GUI.TextBlock();
-        label.text = "DEADLY";
-        label.color = "red";
-        label.fontSize = 100;
-        advancedTexture.addControl(label);
-        return scene;
-      };
-      const scene = createScene();
-      engine.runRenderLoop(function () {
-        scene.render();
-      });
-      window.addEventListener("resize", function () {
-        engine.resize();
-      });
-    </script>
-  </body>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>AR Spinning Cube and DEADLY Text</title>
+
+  
+
+  <!-- AR.js (includes Three.js) -->
+
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+
+
+  <style>
+
+    body { margin: 0; overflow: hidden; }
+
+    canvas { display: block; }
+
+  </style>
+
+</head>
+
+<body>
+
+
+  <!-- A-Frame setup with AR.js -->
+
+  <a-scene embedded arjs>
+
+    <!-- Marker for AR tracking -->
+
+    <a-marker preset="hiro">
+
+      <!-- Spinning Cube -->
+
+      <a-box position="0 0.5 0" rotation="0 0 0" color="#00FF00" animation="property: rotation; to: 0 360 0; dur: 4000; loop: true"></a-box>
+
+      
+
+      <!-- 3D Text: "DEADLY" -->
+
+      <a-text value="DEADLY" position="0 1.5 0" color="red" scale="3 3 3" rotation="0 0 0" align="center" font="https://cdn.aframe.io/fonts/monoid.fnt"></a-text>
+
+    </a-marker>
+
+    
+
+    <!-- Camera for AR -->
+
+    <a-entity camera></a-entity>
+
+  </a-scene>
+
+
+</body>
+
 </html>
