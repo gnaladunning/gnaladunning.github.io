@@ -1,19 +1,43 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>AR Experience with Three.js</title>
-    <script src="https://threejs.org/build/three.min.js"></script>
-    <script src="https://jeromeetienne.github.io/AR.js/aframe/build/aframe-ar.js"></script>
+    <title>AR Experience with Babylon.js</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/babylon.max.js"></script>
+    <script src="https://cdn.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
     <style>
       body { margin: 0; }
       canvas { display: none; }
     </style>
   </head>
   <body>
-    <a-scene embedded arjs>
-      <a-entity geometry="primitive: box" material="color: #4CC3D0" position="0 0.5 -3" rotation="0 0 0" animation="property: rotation; to: 0 360 0; loop: true; dur: 2000"></a-entity>
-      <a-text value="DEADLY" position="0 1.5 -3" color="#FF0000" scale="2 2 2"></a-text>
-      <a-marker-camera preset="hiro"></a-marker-camera>
-    </a-scene>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+      const canvas = document.getElementById("renderCanvas");
+      const engine = new BABYLON.Engine(canvas, true);
+      const createScene = function () {
+        const scene = new BABYLON.Scene(engine);
+        const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 2, 5, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        const box = BABYLON.MeshBuilder.CreateBox("box", {}, scene);
+        box.rotation.y = Math.PI / 4;
+        const text = BABYLON.MeshBuilder.CreatePlane("text", { size: 2 }, scene);
+        const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(text);
+        const label = new BABYLON.GUI.TextBlock();
+        label.text = "DEADLY";
+        label.color = "red";
+        label.fontSize = 100;
+        advancedTexture.addControl(label);
+        return scene;
+      };
+      const scene = createScene();
+      engine.runRenderLoop(function () {
+        scene.render();
+      });
+      window.addEventListener("resize", function () {
+        engine.resize();
+      });
+    </script>
   </body>
 </html>
