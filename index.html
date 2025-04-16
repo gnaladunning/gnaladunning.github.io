@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" >
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, minimum-scale=1, maximum-scale=1" />
-  <title>AR 3D Text DEADLY Above Spinning Cube iOS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Simple AR 3D Text DEADLY Above Spinning Cube iOS</title>
   <style>
     body, html {
       margin: 0; padding: 0; overflow: hidden; height: 100vh; background: #000;
@@ -19,7 +19,6 @@
       height: 100vh;
       position: relative;
       touch-action: none;
-      -webkit-overflow-scrolling: touch;
     }
     canvas {
       display: block;
@@ -36,89 +35,68 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/geometries/TextGeometry.js"></script>
 
   <script>
-    // Three.js AR-like scene optimized for iOS Safari
-
     const container = document.getElementById('ar-container');
 
-    // Scene setup
     const scene = new THREE.Scene();
 
-    // Camera setup
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1, 4);
 
-    // Renderer setup
-    const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true, powerPreference: "high-performance"});
+    const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x000000, 0); // transparent background
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.setClearColor(0x000000, 0);
     container.appendChild(renderer.domElement);
 
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
     directionalLight.position.set(5, 10, 7);
     scene.add(directionalLight);
 
-    // Red Cube
+    // Red cube
     const cubeGeometry = new THREE.BoxGeometry(1,1,1);
-    const cubeMaterial = new THREE.MeshStandardMaterial({color: 0xff0000, roughness: 0.4, metalness: 0.6});
+    const cubeMaterial = new THREE.MeshStandardMaterial({color: 0xff0000});
     const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
     scene.add(cube);
 
-    // Load font and add 3D text "DEADLY"
+    // Load font and create 3D text "DEADLY"
     const loader = new THREE.FontLoader();
-
-    loader.load('https://cdn.jsdelivr.net/npm/three@0.150.1/examples/fonts/helvetiker_regular.typeface.json', function(font) {
+    loader.load('https://cdn.jsdelivr.net/npm/three@0.150.1/examples/fonts/helvetiker_regular.typeface.json', font => {
       const textGeometry = new THREE.TextGeometry('DEADLY', {
         font: font,
         size: 0.5,
-        height: 0.12,
-        curveSegments: 12,
-        bevelEnabled: true,
-        bevelThickness: 0.03,
-        bevelSize: 0.03,
-        bevelOffset: 0,
-        bevelSegments: 4
+        height: 0.1,
+        curveSegments: 8,
+        bevelEnabled: false
       });
       textGeometry.center();
 
-      const textMaterial = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.3, metalness: 0.9});
+      const textMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
       const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-      // Position text slightly above the cube
       textMesh.position.set(0, 1.1, 0);
       scene.add(textMesh);
 
-      // Animate function
       function animate() {
         requestAnimationFrame(animate);
 
-        cube.rotation.y += 0.012;
-        cube.rotation.x += 0.006;
+        cube.rotation.y += 0.01;
+        cube.rotation.x += 0.005;
 
-        // Subtle floating effect for text
-        textMesh.position.y = 1.1 + Math.sin(Date.now() * 0.002) * 0.06;
+        // Floating text effect
+        textMesh.position.y = 1.1 + Math.sin(Date.now() * 0.002) * 0.05;
 
         renderer.render(scene, camera);
       }
       animate();
     });
 
-    // Resize handling
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth/window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
-
-    // Prevent scrolling on touch devices
-    document.body.addEventListener('touchmove', (event) => {
-      event.preventDefault();
-    }, { passive: false });
-
   </script>
 </body>
 </html>
