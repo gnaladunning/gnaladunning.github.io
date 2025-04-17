@@ -1,83 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>Marker-based AR</title>
-  <style>
-    body, html {
-      margin: 0; padding: 0; overflow: hidden; height: 100vh; background: #000;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-      -webkit-tap-highlight-color: transparent;
-      -webkit-user-select: none;
-      user-select: none;
-      -webkit-touch-callout: none;
-    }
-    #arjsDebugUIContainer { display: none; }
-  </style>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/three.js/build/ar-threex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/loaders/FontLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/geometries/TextGeometry.js"></script>
-</head>
-<body>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/three.js/build/ar-threex.min.js"></script>
-
-  <a-scene
-    embedded
-    vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true; antialias: true;"
-    arjs="sourceType: webcam; debugUIEnabled: false;"
-    loading-screen="enabled: false"
-  >
-    <!-- AR.js marker -->
-    <a-marker type="pattern" url="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/data/data/patt.hiro">
-      <!-- Red spinning cube -->
-      <a-box color="red" position="0 0.5 0" rotation="0 45 0" animation="property: rotation; to: 0 405 0; loop: true; dur: 6000"></a-box>
-
-      <!-- DEADLY 3D text -->
-      <a-entity 
-        position="0 1.2 0" 
-        rotation="0 0 0" 
-        scale="0.05 0.05 0.05"
-        id="textEntity"
-      ></a-entity>
-    </a-marker>
-
-    <a-entity camera></a-entity>
-  </a-scene>
-
-  <script>
-    // Load font and create text geometry, then add to a-entity "textEntity"
-    const loader = new THREE.FontLoader();
-    loader.load('https://cdn.jsdelivr.net/npm/three@0.150.1/examples/fonts/helvetiker_regular.typeface.json', function(font) {
-      const textGeo = new THREE.TextGeometry('DEADLY', {
-        font: font,
-        size: 10,
-        height: 2,
-        curveSegments: 8,
-        bevelEnabled: false
-      });
-      textGeo.center();
-
-      const textMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-      const textMesh = new THREE.Mesh(textGeo, textMat);
-
-      // Find the a-entity to attach the mesh
-      const textEntity = document.getElementById('textEntity');
-      textEntity.setObject3D('mesh', textMesh);
-
-      // Animate floating effect
-      let startTime = Date.now();
-      function animate() {
-        const elapsed = Date.now() - startTime;
-        const floatY = 1.2 + Math.sin(elapsed * 0.003) * 0.1;
-        textEntity.object3D.position.y = floatY;
-        requestAnimationFrame(animate);
-      }
-      animate();
-    });
-  </script>
-</body>
+<html>
+  <head>
+    <title>Augmented Reality Experience</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  </head>
+  <body>
+    <a-scene>
+      <a-marker preset="hiro">
+        <a-box position="0 0.5 0" color="red" rotation="0 0 0" animation="property: rotation; to: 0 360 0; loop: true; dur: 2000"></a-box>
+        <a-text value="DEADLY" position="0 1 0" color="white" align="center"></a-text>
+      </a-marker>
+      <a-entity camera look-controls></a-entity>
+    </a-scene>
+  </body>
 </html>
