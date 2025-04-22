@@ -8,17 +8,30 @@
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
         body { margin: 0; }
-        #instructions { position: absolute; top: 10px; left: 10px; color: white; }
+        #flashing-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: white;
+            text-shadow: 0 0 10px red;
+            animation: flash 1s infinite;
+        }
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
     </style>
 </head>
 <body style="margin: 0; overflow: hidden;">
-    <div id="instructions">Point your camera at the HIRO marker.</div>
     <a-scene embedded arjs>
         <a-marker preset="hiro">
-            <a-box position="0 0.5 0" rotation="0 0 0" color="red" animation="property: rotation; to: 0 360 0; loop: true; dur: 2000"></a-box>
-            <a-text value="DEADLY" position="0 1 2" color="white" align="center"></a-text>
+            <a-box position="0 0.5 0" rotation="0 45 0" color="red" animation="property: rotation; to: 0 405 0; loop: true; dur: 2000"></a-box>
+            <a-text value="DEADLY" position="-1 1 0" color="white" scale="2 2 2"></a-text>
         </a-marker>
         <a-entity camera></a-entity>
     </a-scene>
+    <div id="flashing-text">DEADLY</div>
 </body>
 </html>
