@@ -7,44 +7,17 @@
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-        h1 {
-            color: white;
-            text-align: center;
-            font-size: 3em;
-            position: absolute;
-            top: 20%;
-            width: 100%;
-        }
-        h2 {
-            color: white;
-            text-align: center;
-            font-size: 3em;
-            position: absolute;
-            top: 40%;
-            width: 100%;
-        }
-        h3 {
-            color: white;
-            text-align: center;
-            font-size: 3em;
-            position: absolute;
-            top: 60%;
-            width: 100%;
-        }
+        body { margin: 0; }
+        h1 { color: red; font-size: 3em; }
     </style>
 </head>
 <body>
     <a-scene embedded arjs>
-        <a-marker preset="hiro">
-            <a-entity text="value: THOUGHT; color: white;" position="-1 0 0"></a-entity>
-            <a-entity text="value: ALIVE; color: white;" position="0 0 0"></a-entity>
-            <a-entity text="value: FOUNDLING; color: white;" position="1 0 0"></a-entity>
-        </a-marker>
-        <a-entity camera></a-entity>
+        <a-entity position="0 0 -5">
+            <a-text value="THOUGHT" color="red" align="center" position="0 1 0"></a-text>
+            <a-text value="ALIVE" color="red" align="center" position="0 0 0"></a-text>
+            <a-text value="FOUNDLING" color="red" align="center" position="0 -1 0"></a-text>
+        </a-entity>
     </a-scene>
 </body>
 </html>
