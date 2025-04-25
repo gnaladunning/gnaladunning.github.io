@@ -3,22 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Augmented Reality with Three.js</title>
-    <script src="https://threejs.org/build/three.min.js"></script>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <title>Augmented Reality Experience</title>
     <style>
-        body { margin: 0; }
-        h1 { color: red; font-size: 3em; }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: black;
+            color: red;
+            font-size: 5em;
+            text-align: center;
+        }
+        .vertical-text {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 <body>
-    <a-scene embedded arjs>
-        <a-entity position="0 0 -5">
-            <a-text value="THOUGHT" color="red" align="center" position="0 1 0"></a-text>
-            <a-text value="ALIVE" color="red" align="center" position="0 0 0"></a-text>
-            <a-text value="FOUNDLING" color="red" align="center" position="0 -1 0"></a-text>
-        </a-entity>
-    </a-scene>
+    <div class="vertical-text">
+        <div>THOUGHT</div>
+        <div>ALIVE</div>
+        <div>FOUNDLING</div>
+    </div>
 </body>
 </html>
