@@ -1,31 +1,21 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Augmented Reality Experience</title>
+    <title>Interactive AR Experience</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <style>
-        body { margin: 0; }
-        a-scene { height: 100vh; }
-        .text { color: white; font-size: 2em; }
-    </style>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
 </head>
-<body>
-    <a-scene>
-        <a-entity position="0 1.5 -3">
-            <a-text value="DEADLY BELIEF FOUNDLING" class="text" align="center"></a-text>
-        </a-entity>
-        <a-entity position="0 1.5 3" rotation="0 180 0">
-            <a-text value="DEADLY BELIEF FOUNDLING" class="text" align="center"></a-text>
-        </a-entity>
-        <a-entity position="-3 1.5 0" rotation="0 90 0">
-            <a-text value="DEADLY BELIEF FOUNDLING" class="text" align="center"></a-text>
-        </a-entity>
-        <a-entity position="3 1.5 0" rotation="0 -90 0">
-            <a-text value="DEADLY BELIEF FOUNDLING" class="text" align="center"></a-text>
-        </a-entity>
+<body style="margin: 0; overflow: hidden;">
+    <a-scene embedded arjs>
+        <a-marker preset="hiro">
+            <a-entity text="value: DEADLY BELIEF FOUNDLING STATIC; color: black; align: center;" position="0 0.5 0" scale="2 2 2" animation="property: position; to: 0 1 0; dir: alternate; dur: 1000; loop: true"></a-entity>
+            <a-entity text="value: DEADLY BELIEF FOUNDLING STATIC; color: black; align: center;" position="0 0.5 -1" scale="2 2 2" animation="property: position; to: 0 1 -1; dir: alternate; dur: 1000; loop: true"></a-entity>
+            <a-entity text="value: DEADLY BELIEF FOUNDLING STATIC; color: black; align: center;" position="-1 0.5 0" scale="2 2 2" animation="property: position; to: -1 1 0; dir: alternate; dur: 1000; loop: true"></a-entity>
+            <a-entity text="value: DEADLY BELIEF FOUNDLING STATIC; color: black; align: center;" position="1 0.5 0" scale="2 2 2" animation="property: position; to: 1 1 0; dir: alternate; dur: 1000; loop: true"></a-entity>
+        </a-marker>
+        <a-entity camera></a-entity>
     </a-scene>
 </body>
 </html>
