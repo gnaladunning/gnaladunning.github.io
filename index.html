@@ -8,18 +8,21 @@
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
       body { margin: 0; }
+        #ar-container { position: absolute; width: 100%; height: 100%; }
     </style>
 </head>
 <body>
+    <div id="ar-container">
     <a-scene embedded arjs>
         <a-entity position="0 0 -5">
             <a-text value="THOUGHT" color="red" align="center" position="0 1 0"></a-text>
             <a-text value="ALIVE" color="red" align="center" position="0 0 0"></a-text>
             <a-text value="FOUNDLING" color="red" align="center" position="0 -1 0"></a-text>
-             <a-text value="BELIEF" color="red" align="center" position="10 1 0" rotation="0 90 0"></a-text>
-            <a-text value="CRESTS" color="red" align="center" position="10 0 0" rotation="0 90 0"></a-text>
-            <a-text value="SLAUGHTER" color="red" align="center" position="10 -1 0" rotation="0 90 0"></a-text>
+             <a-text value="BELIEF" color="red" align="center" position="0 1 0" rotation="0 90 0"></a-text>
+            <a-text value="CRESTS" color="red" align="center" position="0 0 0" rotation="0 90 0"></a-text>
+            <a-text value="SLAUGHTER" color="red" align="center" position="0 -1 0" rotation="0 90 0"></a-text>
         </a-entity>
     </a-scene>
+        </div>
 </body>
 </html>
