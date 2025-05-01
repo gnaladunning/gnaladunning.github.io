@@ -3,23 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Cube with Three.js</title>
-    <script src="https://threejs.org/build/three.min.js"></script>
+    <title>AR Cube Experience</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
         body { margin: 0; }
-        a-scene { height: 100vh; }
+        canvas { display: none; }
     </style>
 </head>
 <body>
     <a-scene embedded arjs>
-        <a-entity geometry="primitive: box; width: 1; height: 1; depth: 1" material="color: red" position="0 0.5 0">
-            <a-text value="ALIVE" color="white" position="0 0.6 0.5"></a-text>
-            <a-text value="BENEFIT" color="white" position="0 0.6 -0.5"></a-text>
-            <a-text value="HATTED" color="white" position="0 0.6 0"></a-text>
-        </a-entity>
-        <a-entity camera></a-entity>
+        <a-box position="0 0 0" rotation="0 45 0" color="red" depth="1" height="1" width="1">
+            <a-text value="ALIVE" color="white" position="0 0.5 0.51" align="center"></a-text>
+        </a-box>
+        <a-box position="1.5 0 0" rotation="0 45 0" color="red" depth="1" height="1" width="1">
+            <a-text value="BENEFIT" color="white" position="0 0.5 0.51" align="center"></a-text>
+        </a-box>
+        <a-box position="-1.5 0 0" rotation="0 45 0" color="red" depth="1" height="1" width="1">
+            <a-text value="HATTED" color="white" position="0 0.5 0.51" align="center"></a-text>
+        </a-box>
     </a-scene>
 </body>
 </html>
