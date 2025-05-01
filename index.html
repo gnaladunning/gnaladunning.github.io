@@ -3,25 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Cube Experience</title>
+    <title>AR Experience</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdn.rawgit.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
         body { margin: 0; }
-        canvas { display: none; }
+        h1 { color: red; font-size: 3em; }
     </style>
 </head>
-<body>
+<body style="margin: 0; overflow: hidden;">
     <a-scene embedded arjs>
-        <a-box position="0 0 0" rotation="0 45 0" color="red" depth="1" height="1" width="1">
-            <a-text value="ALIVE" color="white" position="0 0.5 0.51" align="center"></a-text>
-        </a-box>
-        <a-box position="1.5 0 0" rotation="0 45 0" color="red" depth="1" height="1" width="1">
-            <a-text value="BENEFIT" color="white" position="0 0.5 0.51" align="center"></a-text>
-        </a-box>
-        <a-box position="-1.5 0 0" rotation="0 45 0" color="red" depth="1" height="1" width="1">
-            <a-text value="HATTED" color="white" position="0 0.5 0.51" align="center"></a-text>
-        </a-box>
+        <a-text value="ALIVE" color="red" position="-1 1 -3" rotation="0 0 0"></a-text>
+        <a-text value="BENEFIT" color="red" position="0 1 -3" rotation="0 0 0"></a-text>
+        <a-text value="HATTED" color="red" position="1 1 -3" rotation="0 0 0"></a-text>
+        <a-entity camera></a-entity>
     </a-scene>
 </body>
 </html>
