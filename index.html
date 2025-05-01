@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Experience</title>
+    <title>Interactive AR Experience</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
@@ -13,9 +13,9 @@
 </head>
 <body style="margin: 0; overflow: hidden;">
     <a-scene embedded arjs>
-        <a-text value="ALIVE" color="red" position="-1 1 -3" rotation="0 0 0"></a-text>
-        <a-text value="BENEFIT" color="red" position="0 1 -3" rotation="0 0 0"></a-text>
-        <a-text value="HATTED" color="red" position="1 1 -3" rotation="0 0 0"></a-text>
+        <a-text value="ALIVE" color="red" position="-1 1 -3" scale="1 1 1" event-set__mouseenter="scale: 1.5 1.5 1.5" event-set__mouseleave="scale: 1 1 1"></a-text>
+        <a-text value="BENEFIT" color="red" position="0 1 -3" scale="1 1 1" event-set__mouseenter="scale: 1.5 1.5 1.5" event-set__mouseleave="scale: 1 1 1"></a-text>
+        <a-text value="HATTED" color="red" position="1 1 -3" scale="1 1 1" event-set__mouseenter="scale: 1.5 1.5 1.5" event-set__mouseleave="scale: 1 1 1"></a-text>
         <a-entity camera></a-entity>
     </a-scene>
 </body>
