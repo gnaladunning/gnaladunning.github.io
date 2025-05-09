@@ -1,21 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AR Experience - ALIVE</title>
-    <link rel="stylesheet" href="https://aframe.io/releases/1.2.0/aframe.min.css">
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <style>
-        body { margin: 0; }
-        a-text { font: 50px Arial; }
-    </style>
 </head>
-<body>
+<body style="margin: 0; overflow: hidden;">
     <a-scene embedded arjs>
-        <a-marker preset="custom" url="qrcode.jpg">
-            <a-text value="ALIVE" color="green" scale="10 10 10" position="0 0 0"></a-text>
+        <a-marker preset="custom" url="path/to/your/custom.patt">
+            <a-text value="ALIVE" color="blue" scale="5 5 5" position="0 0 0"></a-text>
         </a-marker>
         <a-entity camera></a-entity>
     </a-scene>
