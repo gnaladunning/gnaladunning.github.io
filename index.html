@@ -1,28 +1,18 @@
-# Augmented Reality Experience: DEADLY ALIVE HATTED WORLD
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DEADLY ALIVE HATTED WORLD</title>
+    <title>AR Experience - ALIVE</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
-
-    <style>
-        body { margin: 0; }
-        a-scene { height: 100vh; }
-    </style>
 </head>
-<body>
-     <a-scene embedded arjs>
-         <a-marker type="image" url="qrcode.jpg">
+<body style="margin: 0; overflow: hidden;">
+    <a-scene embedded arjs>
+        <a-marker preset="custom" url="qrcode.jpg">
+            <a-text value="ALIVE" color="blue" scale="5 5 5" position="0 0 0"></a-text>
         </a-marker>
         <a-entity camera></a-entity>
-        <a-text value="DEADLY" position="-1 1 -3" color="#FF0000" scale="5 5 5"></a-text>
-        <a-text value="ALIVE" position="1 2 -3" color="#00FF00" scale="5 5 5"></a-text>
-        <a-text value="HATTED" position="0 3 -3" color="#0000FF" scale="5 5 5"></a-text>
-        <a-text value="WORLD" position="0 -2 -5" color="#FFFF00" scale="5 5 5"></a-text>
     </a-scene>
 </body>
 </html>
