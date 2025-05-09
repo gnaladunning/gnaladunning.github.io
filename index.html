@@ -16,6 +16,10 @@
 </head>
 <body>
      <a-scene embedded arjs>
+         <a-marker preset="hiro">
+            <a-image src="qrcode.jpg" position="0 0 0" width="1"></a-image>
+        </a-marker>
+        <a-entity camera></a-entity>
         <a-text value="DEADLY" position="-1 1 -3" color="#FF0000" scale="5 5 5"></a-text>
         <a-text value="ALIVE" position="1 2 -3" color="#00FF00" scale="5 5 5"></a-text>
         <a-text value="HATTED" position="0 3 -3" color="#0000FF" scale="5 5 5"></a-text>
