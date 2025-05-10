@@ -1,42 +1,30 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>Image based tracking AR.js demo</title>
-    <!-- import aframe and then ar.js with image tracking / location based features -->
-    <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-  </head>
-
-  <body style="margin : 0px; overflow: hidden;">
-    <!-- minimal loader shown until image descriptors are loaded. Loading may take a while according to the device computational power -->
-    <div class="arjs-loader">
-      <div>Loading, please wait...</div>
-    </div>
-
-    <!-- a-frame scene -->
-    <a-scene
-      vr-mode-ui="enabled: false;"
-      renderer="logarithmicDepthBuffer: true;"
-      embedded
-      arjs="trackingMethod: best; sourceType: webcam;debugUIEnabled: false;">
-      <!-- a-nft is the anchor that defines an Image Tracking entity -->
-      <!-- on 'url' use the path to the Image Descriptors created before. -->
-      <!-- the path should end with the name without the extension e.g. if file is trex.fset' the path should end with trex -->
-      <a-nft
-        type="nft"
-        url="<qrcode>"
-        smooth="true"
-        smoothCount="10"
-        smoothTolerance=".01"
-        smoothThreshold="5">
-          <!-- as a child of the a-nft entity, you can define the content to show. here's a GLTF model entity -->
-  
-      </a-nft>
-      <!-- static camera that moves according to the device movemenents -->
-      <a-text value="WORDLY" position="-1 1.5 -3" color="#FF5733" scale="1 1 1"></a-text>
-      <a-entity camera></a-entity>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Marker AR Experience</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <style>
+        #marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-size: 48px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="marker">qrcode</div>
+    <a-scene embedded arjs>
+        <a-marker type='pattern' url='qrcode.patt'>
+            <a-text value="Discover WORDLY!" color="red" position="0 0.5 0"></a-text>
+        </a-marker>
+        <a-entity camera></a-entity>
     </a-scene>
-  </body>
+</body>
 </html>
