@@ -14,7 +14,7 @@
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     
     <a-scene embedded arjs>
-        <a-marker preset="custom" type="pattern" url="path/to/your/marker.jpg">
+        <a-marker preset="custom" type="pattern" url="marker.jpg">
             <a-text value="VITALITY" color="white" align="center" position="0 0.5 0"></a-text>
         </a-marker>
         <a-entity camera></a-entity>
@@ -22,7 +22,7 @@
 
     <script>
         // Error handling for marker loading
-        const markerUrl = 'path/to/your/marker.jpeg';
+        const markerUrl = 'marker.jpg';
         const img = new Image();
         img.src = markerUrl;
 
