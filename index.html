@@ -1,24 +1,49 @@
-# Marker-Based Augmented Reality with 3.js
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Augmented Reality - VITALITY</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <title>Marker-Based Augmented Reality</title>
     <style>
         body { margin: 0; }
-        #arjs { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    
     <a-scene embedded arjs>
-        <a-marker preset="custom" type='pattern' url='qrcode.patt'>
+        <a-marker preset="custom" type="pattern" url="path/to/your/marker.jpeg">
             <a-text value="VITALITY" color="white" align="center" position="0 0.5 0"></a-text>
         </a-marker>
         <a-entity camera></a-entity>
     </a-scene>
+
+    <script>
+        // Error handling for marker loading
+        const markerUrl = 'path/to/your/marker.jpeg';
+        const img = new Image();
+        img.src = markerUrl;
+
+        img.onload = function() {
+            console.log("Marker loaded successfully.");
+        };
+
+        img.onerror = function() {
+            console.error("Error loading marker image. Please check the file path.");
+            alert("Failed to load the marker image. Please ensure the path is correct.");
+        };
+
+        // Additional error handling for AR.js initialization
+        try {
+            if (!AR) {
+                throw new Error("AR.js is not loaded. Please check your script references.");
+            }
+        } catch (error) {
+            console.error(error.message);
+            alert("An error occurred while initializing AR.js. Please check the console for details.");
+        }
+    </script>
 </body>
 </html>
