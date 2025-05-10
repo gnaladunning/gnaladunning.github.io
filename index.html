@@ -1,16 +1,14 @@
+# Image Display Page
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>AR Experience - ALIVE</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Display</title>
 </head>
-<body style="margin: 0; overflow: hidden;">
-    <a-scene embedded arjs>
-        <a-marker preset="pattern" url="https://github.com/gnaladunning/gnaladunning.github.io/blob/main/qrcode.patt">
-            <a-text value="ALIVE" color="blue" scale="5 5 5" position="0 0 0"></a-text>
-        </a-marker>
-        <a-entity camera></a-entity>
-    </a-scene>
+<body>
+    <h1>Welcome to the Image Display Page</h1>
+    <img src="qrcode.jpg" alt="Description of Image" />
 </body>
 </html>
