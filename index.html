@@ -3,25 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Custom Marker AR Experience</title>
+    <title>WORDLY AR Experience</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <style>
-        #marker {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: red;
-            font-size: 48px;
-            font-weight: bold;
-        }
-    </style>
 </head>
-<body>
+<body style="margin: 0; overflow: hidden;">
     <a-scene embedded arjs>
-        <a-marker type='pattern' url='qrcode.patt'>
-            <a-text value="Discover WORDLY!" color="red" position="0 0.5 0"></a-text>
+        <a-marker preset="custom" url="qrcode.patt">
+            <a-text value="WORDLY" color="red" position="0 0.5 0" scale="5 5 5"></a-text>
         </a-marker>
         <a-entity camera></a-entity>
     </a-scene>
