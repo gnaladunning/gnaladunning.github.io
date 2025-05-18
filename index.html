@@ -3,41 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Experience with 3D Perspective</title>
+    <title>AR Experience</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            perspective: 1000px;
-            height: 100vh;
-            background-color: #e0e0e0;
-        }
-        .container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-        }
-        .text {
-            position: absolute;
-            font-size: 24px;
-            color: #444;
-            font-weight: bold;
-            transform: translateZ(100px);
-        }
-        .text-0 { transform: rotateY(0deg) translateZ(100px); }
-        .text-90 { transform: rotateY(90deg) translateZ(100px); }
-        .text-180 { transform: rotateY(180deg) translateZ(100px); }
-        .text-270 { transform: rotateY(270deg) translateZ(100px); }
+        body { margin: 0; }
+        a-scene { height: 100vh; }
+        .text { color: red; font-size: 5; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="text text-0">CLOSER</div>
-        <div class="text text-90">CLOSER</div>
-        <div class="text text-180">CLOSER</div>
-        <div class="text text-270">CLOSER</div>
-    </div>
-     <a-entity camera></a-entity>
+    <a-scene embedded arjs>
+        <a-entity position="0 1 -3">
+            <a-text value="ALIVE" class="text" color="red"></a-text>
+        </a-entity>
+        <a-entity position="0 1 3" rotation="0 180 0">
+            <a-text value="ALIVE" class="text" color="red"></a-text>
+        </a-entity>
+        <a-entity position="-3 1 0" rotation="0 90 0">
+            <a-text value="ALIVE" class="text" color="red"></a-text>
+        </a-entity>
+        <a-entity position="3 1 0" rotation="0 -90 0">
+            <a-text value="ALIVE" class="text" color="red"></a-text>
+        </a-entity>
+        <a-entity position="0 0 -3" rotation="90 0 0">
+            <a-text value="ALIVE" class="text" color="red"></a-text>
+        </a-entity>
+        <a-entity position="0 2 -3" rotation="-90 0 0">
+            <a-text value="ALIVE" class="text" color="red"></a-text>
+        </a-entity>
+    </a-scene>
 </body>
 </html>
