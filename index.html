@@ -1,28 +1,33 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Interactive AR Experience</title>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Experience with Background</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://aframe.io/aframe-ar.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
-      body { margin: 0; }
-      a-scene { height: 100vh; }
-      a-text { color: #FFF; font-size: 1.5; }
+        .text {
+            color: white;
+            font-size: 2em;
+            text-align: center;
+        }
+        .background {
+            color: rgba(0, 0, 0, 0.5);
+            width: 10;
+            height: 5;
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body style="margin: 0; overflow: hidden;">
     <a-scene embedded arjs>
-      <a-marker preset="HIRO">
-        <a-text value="Welcome" position="0 0.5 0" align="center" scale="2 2 2"></a-text>
-        <a-text value="Explore" position="0 0.5 -1" align="center" scale="2 2 2"></a-text>
-        <a-text value="Learn" position="-1 0.5 0" align="center" scale="2 2 2"></a-text>
-        <a-text value="Create" position="1 0.5 0" align="center" scale="2 2 2"></a-text>
-        <a-text value="Innovate" position="0 1.5 0" align="center" scale="2 2 2"></a-text>
-        <a-text value="Inspire" position="0 -0.5 0" align="center" scale="2 2 2"></a-text>
-        <a-text value="Connect" position="0 0.5 1" align="center" scale="2 2 2"></a-text>
-        <a-text value="Achieve" position="0 0.5 -2" align="center" scale="2 2 2"></a-text>
-      </a-marker>
+        <a-entity position="0 0 -5">
+            <a-plane class="background" position="0 0 0" rotation="-90 0 0"></a-plane>
+            <a-text value="THE REKINDLING OF AN OLD ARGUMENT" class="text" position="0 1 0"></a-text>
+            <a-text value="THREATENS THE RECONCILIATION" class="text" position="0 0.5 0"></a-text>
+            <a-text value="OF TWO ESTRANGED FRIENDS" class="text" position="0 0 0"></a-text>
+            <a-text value="AFTER A CHANCE ENCOUNTER" class="text" position="0 -0.5 0"></a-text>
+        </a-entity>
       <a-entity camera></a-entity>
     </a-scene>
   </body>
