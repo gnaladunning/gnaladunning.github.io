@@ -2,25 +2,26 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Augmented Reality Experience</title>
-    <script src="aframe.min.js"></script>
-    <script src="aframe-ar.js"></script>
+    <title>Interactive AR Experience</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://aframe.io/aframe-ar.js"></script>
     <style>
       body { margin: 0; }
       a-scene { height: 100vh; }
+      a-text { color: #FFF; font-size: 1.5; }
     </style>
   </head>
   <body>
     <a-scene embedded arjs>
-      <a-marker preset="hiro">
-        <a-text value="Front" position="0 0.5 0" align="center"></a-text>
-        <a-text value="Back" position="0 0.5 -1" align="center"></a-text>
-        <a-text value="Left" position="-1 0.5 0" align="center"></a-text>
-        <a-text value="Right" position="1 0.5 0" align="center"></a-text>
-        <a-text value="Top" position="0 1.5 0" align="center"></a-text>
-        <a-text value="Bottom" position="0 -0.5 0" align="center"></a-text>
-        <a-text value="Side 1" position="0 0.5 1" align="center"></a-text>
-        <a-text value="Side 2" position="0 0.5 -2" align="center"></a-text>
+      <a-marker preset="HIRO">
+        <a-text value="Welcome" position="0 0.5 0" align="center" scale="2 2 2"></a-text>
+        <a-text value="Explore" position="0 0.5 -1" align="center" scale="2 2 2"></a-text>
+        <a-text value="Learn" position="-1 0.5 0" align="center" scale="2 2 2"></a-text>
+        <a-text value="Create" position="1 0.5 0" align="center" scale="2 2 2"></a-text>
+        <a-text value="Innovate" position="0 1.5 0" align="center" scale="2 2 2"></a-text>
+        <a-text value="Inspire" position="0 -0.5 0" align="center" scale="2 2 2"></a-text>
+        <a-text value="Connect" position="0 0.5 1" align="center" scale="2 2 2"></a-text>
+        <a-text value="Achieve" position="0 0.5 -2" align="center" scale="2 2 2"></a-text>
       </a-marker>
       <a-entity camera></a-entity>
     </a-scene>
