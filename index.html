@@ -1,71 +1,35 @@
-# Hexagon Text Layout
+# Augmented Reality Experience for iOS
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hexagon Text Layout</title>
+    <title>AR Experience</title>
+    <script src="aframe.min.js"></script>
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f0f0;
-        }
-        .hexagon {
-            position: relative;
-            width: 200px;
-            height: 115.47px;
-            background-color: transparent;
-            margin: 57.74px 0;
-            border-left: solid 5px transparent;
-            border-right: solid 5px transparent;
-            border-bottom: solid 5px #007BFF;
-        }
-        .hexagon:before,
-        .hexagon:after {
-            content: '';
-            position: absolute;
-            width: 0;
-            border-left: 100px solid transparent;
-            border-right: 100px solid transparent;
-        }
-        .hexagon:before {
-            bottom: 100%;
-            border-bottom: 57.74px solid #007BFF;
-        }
-        .hexagon:after {
-            top: 100%;
-            border-top: 57.74px solid #007BFF;
-        }
         .text {
             position: absolute;
             color: white;
-            font-weight: bold;
+            font-size: 24px;
             text-align: center;
         }
-        .text1 { top: 10%; left: 50%; transform: translate(-50%, -50%); }
-        .text2 { top: 50%; left: 10%; transform: translate(-50%, -50%) rotate(-90deg); }
-        .text3 { top: 50%; right: 10%; transform: translate(50%, -50%) rotate(90deg); }
-        .text4 { bottom: 10%; left: 50%; transform: translate(-50%, 50%); }
-        .text5 { top: 25%; left: 25%; transform: translate(-50%, -50%) rotate(-45deg); }
-        .text6 { top: 25%; right: 25%; transform: translate(50%, -50%) rotate(45deg); }
-        .text7 { bottom: 25%; left: 25%; transform: translate(-50%, 50%) rotate(135deg); }
-        .text8 { bottom: 25%; right: 25%; transform: translate(50%, 50%) rotate(-135deg); }
     </style>
 </head>
 <body>
-    <div class="hexagon">
-        <div class="text text1">Top</div>
-        <div class="text text2">Left</div>
-        <div class="text text3">Right</div>
-        <div class="text text4">Bottom</div>
-        <div class="text text5">Top Left</div>
-        <div class="text text6">Top Right</div>
-        <div class="text text7">Bottom Left</div>
-        <div class="text text8">Bottom Right</div>
-    </div>
+    <a-scene embedded arjs>
+        <a-marker preset="hiro">
+            <a-box position="0 0.5 0" material="color: blue;"></a-box>
+            <a-text value="Front" position="0 1 0.5" class="text"></a-text>
+            <a-text value="Back" position="0 1 -0.5" class="text"></a-text>
+            <a-text value="Left" position="-0.5 1 0" class="text"></a-text>
+            <a-text value="Right" position="0.5 1 0" class="text"></a-text>
+            <a-text value="Top" position="0 1.5 0" class="text"></a-text>
+            <a-text value="Bottom" position="0 -0.5 0" class="text"></a-text>
+            <a-text value="Side 1" position="-0.5 1 0.5" class="text"></a-text>
+            <a-text value="Side 2" position="0.5 1 -0.5" class="text"></a-text>
+        </a-marker>
+        <a-entity camera></a-entity>
+    </a-scene>
 </body>
 </html>
