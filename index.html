@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AR Experience</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="aframe.min.js"></script>
+    <script src="aframe-ar.js"></script>
     <style>
         body { margin: 0; }
         a-scene { height: 100vh; }
@@ -15,10 +15,15 @@
 <body>
     <a-scene embedded arjs>
         <a-entity position="0 0 -3">
-            <a-text value="FRONT" class="text" color="red"></a-text>
+            <a-text value="THE REKINDLING OF AN OLD ARGUMENT" class="text" color="red"></a-text>
         </a-entity>
         <a-entity position="0 .25 -3">
-            <a-text value="FRONT" class="text" color="red"></a-text>
+            <a-text value="THREATENS THE RECONCILIATION" class="text" color="red"></a-text>
+        </a-entity> <a-entity position="0 .5 -3">
+            <a-text value="OF TWO ESTRANGED FRIENDS" class="text" color="red"></a-text>
+        </a-entity>
+        </a-entity> <a-entity position="0 .75 -3">
+            <a-text value="AFTER A CHANCE ENCOUNTER" class="text" color="red"></a-text>
         </a-entity>
         <a-entity position="0 0 3" rotation="0 180 0">
             <a-text value="BACK" class="text" color="red"></a-text>
