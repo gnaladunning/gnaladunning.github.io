@@ -14,16 +14,19 @@
 </head>
 <body>
     <a-scene embedded arjs>
-        <a-entity position="0 1 -3">
+        <a-entity position="0 0 -3">
+            <a-text value="FRONT" class="text" color="red"></a-text>
+        </a-entity>
+        <a-entity position="1 0 -3">
             <a-text value="FRONT" class="text" color="red"></a-text>
         </a-entity>
         <a-entity position="0 1 3" rotation="0 180 0">
             <a-text value="BACK" class="text" color="red"></a-text>
         </a-entity>
-        <a-entity position="-3 1 0" rotation="0 90 0">
+        <a-entity position="-3 0 0" rotation="0 90 0">
             <a-text value="LEFT" class="text" color="red"></a-text>
         </a-entity>
-        <a-entity position="3 1 0" rotation="0 -90 0">
+        <a-entity position="3 0 0" rotation="0 -90 0">
             <a-text value="RIGHT" class="text" color="red"></a-text>
         </a-entity>
     </a-scene>
