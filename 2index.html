@@ -1,27 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Experience</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <title>WebAR 4-Sided Text Example (A-Frame + AR.js)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <!-- AR.js for A-Frame (supports image markers and markerless WebXR AR) -->
+    <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.4/aframe/build/aframe-ar.js"></script>
     <style>
-        .text {
-            color: white;
-            font-size: 2em;
-            text-align: center;
-        }
+      body { margin: 0; overflow: hidden; }
+      #arjsDebugUIContainer { display: none !important; }
     </style>
-</head>
-<body style="margin: 0; overflow: hidden;">
-    <a-scene embedded arjs>
-        <a-entity position="0 0 -5">
-            <a-text value="THE REKINDLING OF AN OLD ARGUMENT" class="text" position="0 1 0"></a-text>
-            <a-text value="THREATENS THE RECONCILIATION" class="text" position="0 0.5 0"></a-text>
-            <a-text value="OF TWO ESTRANGED FRIENDS" class="text" position="0 0 0"></a-text>
-            <a-text value="AFTER A CHANCE ENCOUNTER" class="text" position="0 -0.5 0"></a-text>
-        </a-entity>
+  </head>
+  <body>
+    <a-scene
+      vr-mode-ui="enabled: false"
+      embedded
+      arjs="sourceType: webcam; debugUIEnabled: false;"
+      renderer="colorManagement: true; physicallyCorrectLights: true;"
+      device-orientation-permission-ui="enabled: true"
+    >
+      <!-- central reference point (invisible) -->
+      <a-entity id="center" position="0 0 0"></a-entity>
+      
+      <!-- Text on 4 sides of the central viewpoint -->
+      <a-entity position="0 0 -1">
+        <a-text value="Front Side" align="center" color="#FF0000" side="double" width="1.5"></a-text>
+      </a-entity>
+      <a-entity position="1 0 0" rotation="0 -90 0">
+        <a-text value="Right Side" align="center" color="#00FF00" side="double" width="1.5"></a-text>
+      </a-entity>
+      <a-entity position="0 0 1" rotation="0 180 0">
+        <a-text value="Back Side" align="center" color="#0000FF" side="double" width="1.5"></a-text>
+      </a-entity>
+      <a-entity position="-1 0 0" rotation="0 90 0">
+        <a-text value="Left Side" align="center" color="#FFFF00" side="double" width="1.5"></a-text>
+      </a-entity>
+
+      <!-- Optionally, add a ground for context -->
+      <a-plane position="0 -0.5 0" rotation="-90 0 0" width="4" height="4" color="#CCC" opacity="0.5"></a-plane>
+
+      <!-- Camera for AR.js -->
+      <a-entity camera look-controls wasd-controls
+        arjs-camera="sourceType: webcam; enableVuforia: false;">
+      </a-entity>
     </a-scene>
-</body>
+    <!-- iOS Note: For best results, run this over HTTPS and in Safari (iOS 12+). -->
+  </body>
 </html>
