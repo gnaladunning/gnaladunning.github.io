@@ -21,34 +21,27 @@
       vr-mode-ui="enabled: false"
       renderer="logarithmicDepthBuffer: true;"
     >
-      <!-- Portal frame as a rectangle -->
-      <a-box
-        position="3 0 0"
-        depth="0.1"
-        height="2"
-        width="1.5"
-        color="#3333ff"
-        material="opacity: 0.6; transparent: true;"
-      ></a-box>
-      <!-- Inner portal: the text ALIVE -->
-      <a-entity position="0 3 0">
-        <a-plane 
-          width="1.9" height="2.2" 
-          rotation="0 0 0"
-          color="#1a1a1a"
-          material="opacity: 0.85; transparent: true;">
-        </a-plane>
-        <a-text 
-          value="ALIVE"
-          align="center"
-          width="1.7"
-          color="#00FF99"
-          position="0 0 0.01"
-          side="double"
-          shader="msdf"
-          font="Roboto-Regular.json"
-        ></a-text>
-      </a-entity>
+      <!-- Portal frame: four thin boxes to create a window/portal, all at z = -3 -->
+      <a-box position="0 1 -3" width="1.5" height="0.1" depth="0.1" color="#3333ff" material="opacity: 0.7; transparent: true;"></a-box>
+      <a-box position="0 -1 -3" width="1.5" height="0.1" depth="0.1" color="#3333ff" material="opacity: 0.7; transparent: true;"></a-box>
+      <a-box position="0.8 0 -3" width="0.1" height="2" depth="0.1" color="#3333ff" material="opacity: 0.7; transparent: true;"></a-box>
+      <a-box position="-0.8 0 -3" width="0.1" height="2" depth="0.1" color="#3333ff" material="opacity: 0.7; transparent: true;"></a-box>
+
+      <!-- The "other space" is shown by a background plane behind the portal at z = -4 -->
+      <a-plane position="0 0 -4" width="2" height="2.5" color="#000" material="opacity: 0.85; transparent: true;"></a-plane>
+      
+      <!-- Text "ALIVE" in red at z = -4 (behind the portal) -->
+      <a-text 
+        value="ALIVE"
+        align="center"
+        width="1.7"
+        color="#FF2222"
+        position="0 0 -4"
+        side="double"
+        font="https://cdn.aframe.io/fonts/Roboto-msdf.json"
+        shader="msdf"
+      ></a-text>
+
       <!-- Camera -->
       <a-entity camera></a-entity>
     </a-scene>
