@@ -18,15 +18,14 @@
       renderer="logarithmicDepthBuffer: true;"
     >
       <!-- Portal ring as a torus -->
-      <a-torus 
-        position="0 0 0"
-        radius="1.2"
-        radius-tubular="0.12"
-        color="#3333ff"
-        segments-radial="32"
-        segments-tubular="24"
-        material="opacity: 0.6; transparent: true;"
-      ></a-torus>
+      <a-box
+  position="0 0 0"
+  depth="0.1"
+  height="2"
+  width="1.5"
+  color="#3333ff"
+  material="opacity: 0.6; transparent: true;"
+></a-box>
       <!-- Inner portal: the text ALIVE -->
       <a-entity position="0 0 -1">
         <a-plane 
