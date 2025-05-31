@@ -4,39 +4,50 @@
     <meta charset="UTF-8">
     <title>WebAR Portal: ALIVE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Use CDN for maximum compatibility -->
     <script src="aframe.min.js"></script>
+    <script src="aframe-ar-nft.js"></script>
     <style>
-      body, html { margin: 0; padding: 0; overflow: hidden; }
+      body, html { margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%;}
+      a-scene { width: 100vw; height: 100vh; }
     </style>
   </head>
   <body>
     <a-scene
-      embedded arjs
-    ></a-scene>
-      <!-- box as a portal -->
+      embedded
+      arjs="sourceType: webcam; debugUIEnabled: false;"
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true;"
+    >
+      <!-- Portal frame as a rectangle -->
       <a-box
-  position="0 0 0"
-  depth="0.1"
-  height="2"
-  width="1.5"
-  color="#3333ff"
-  material="opacity: 0.0; transparent: true;"
-></a-box>
+        position="0 0 0"
+        depth="0.1"
+        height="2"
+        width="1.5"
+        color="#3333ff"
+        material="opacity: 0.6; transparent: true;"
+      ></a-box>
       <!-- Inner portal: the text ALIVE -->
-      <a-entity position="0 0 0">
+      <a-entity position="0 0 -1">
         <a-plane 
           width="1.9" height="2.2" 
           rotation="0 0 0"
           color="#1a1a1a"
-          material="opacity: 0.0; transparent: true;">
+          material="opacity: 0.85; transparent: true;">
         </a-plane>
         <a-text 
           value="ALIVE"
           align="center"
           width="1.7"
-          color="RED"
-          position="0 0 0"
-          ></a-text>
+          color="#00FF99"
+          position="0 0 0.01"
+          side="double"
+          shader="msdf"
+          font="Roboto-Regular.json"
+        ></a-text>
       </a-entity>
       <!-- Camera -->
       <a-entity camera></a-entity>
