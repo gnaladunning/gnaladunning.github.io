@@ -20,7 +20,13 @@
    
     <a-scene embedded arjs>
          <!-- TOP -->
-    
+        <a-entity position="0 2 -3">
+            <a-text value="TOP" scale="1 1 1" align="center" color="coral"></a-text>
+        </a-entity>
+        <!-- Bottom Text: Appears below the viewer (negative y) -->
+        <a-entity position="0 -2 -3">
+            <a-text value="TOP" scale="1 1 1" align="center" color="coral"></a-text>
+        </a-entity>
         <!-- FRONT -->
         <a-entity position="0 0 -3">
             <a-text value="THE REKINDLING OF AN OLD ARGUMENT" scale=".5 .5 1" align="center" color="coral"></a-text>
