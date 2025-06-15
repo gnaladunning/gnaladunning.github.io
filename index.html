@@ -1,4 +1,4 @@
-# WebAR Experience: Spherical Arrangement of "ALIVE"
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -15,10 +15,7 @@
         }
     </style>
 </head>
-<body>
-    <a-scene>
-        <a-sphere radius="5" color="transparent" position="0 0 0"></a-sphere>
-        <script>
+     <script>
             const scene = document.querySelector('a-scene');
             for (let i = 0; i < 44; i++) {
                 const angle = (i / 44) * Math.PI * 2;
@@ -31,6 +28,10 @@
                 scene.appendChild(textEntity);
             }
         </script>
+<body>
+    <a-scene>
+        <a-sphere radius="5" color="transparent" position="0 0 0"></a-sphere>
+    
         <a-entity camera></a-entity>
     </a-scene>
 </body>
