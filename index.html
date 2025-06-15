@@ -1,0 +1,36 @@
+# WebAR Experience: Spherical Arrangement of "ALIVE"
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAR ALIVE Experience</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <style>
+        .text {
+            color: white;
+            font-size: 1.5em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <a-scene>
+        <a-sphere radius="5" color="transparent" position="0 0 0"></a-sphere>
+        <script>
+            const scene = document.querySelector('a-scene');
+            for (let i = 0; i < 44; i++) {
+                const angle = (i / 44) * Math.PI * 2;
+                const x = Math.cos(angle) * 5;
+                const z = Math.sin(angle) * 5;
+                const textEntity = document.createElement('a-text');
+                textEntity.setAttribute('value', 'ALIVE');
+                textEntity.setAttribute('position', `${x} 0 ${z}`);
+                textEntity.setAttribute('class', 'text');
+                scene.appendChild(textEntity);
+            }
+        </script>
+    </a-scene>
+</body>
+</html>
