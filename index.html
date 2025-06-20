@@ -1,75 +1,37 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js" defer></script>
-  </head>
-  <body style="margin: 0; overflow: hidden">
-    <button id="start-ar" style="position:absolute;z-index:2;top:10px;left:10px;">Start AR</button>
-    <a-scene
-      embedded
-      arjs="sourceType: webcam; debugUIEnabled: true;"
-      vr-mode-ui="enabled: false"
-      renderer="logarithmicDepthBuffer: true; antialias: true;"
-      style="display:none;"
-      id="ar-scene"
-    >
-      <!-- Hiro marker; you can use other presets or custom markers -->
-      <a-marker preset="hiro">
-        <a-entity
-          geometry="primitive: plane; width: 2; height: 2"
-          rotation="-90 0 0"
-          position="0 0 0"
-          reflective-plane
-        ></a-entity>
-      </a-marker>
-      <a-entity camera></a-entity>
-      <script>
-        // Custom component for mirror effect
-         <script>
-    AFRAME.registerComponent('reflective-plane', {
-      init: function () {
-        const el = this.el;
-        const tryApplyTexture = () => {
-          const video = document.querySelector('video');
-          if (!video) {
-            setTimeout(tryApplyTexture, 300);
-            return;
-          }
-          // Ensure video plays (important for iOS)
-          video.muted = true;
-          video.setAttribute('playsinline', '');
-          video.play();
+# WebAR Experience with Live Camera Output
 
-          const mesh = el.getObject3D('mesh');
-          if (!mesh) {
-            el.addEventListener('model-loaded', () => tryApplyTexture());
-            return;
-          }
-          const texture = new THREE.VideoTexture(video);
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.format = THREE.RGBFormat;
-          mesh.material = new THREE.MeshPhongMaterial({
-            map: texture,
-            shininess: 100,
-            side: THREE.DoubleSide,
-            color: 0xffffff
-          });
-          mesh.material.needsUpdate = true;
-        };
-        tryApplyTexture();
-      }
-    });
-  </script>
-    </a-scene>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAR Experience</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <style>
+        body { margin: 0; }
+        #ar-container { position: absolute; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+    <div id="ar-container">
+        <a-scene embedded arjs>
+            <a-marker preset="hiro">
+                <a-plane src="#cameraFeed" rotation="-90 0 0" width="1" height="1"></a-plane>
+            </a-marker>
+            <a-entity camera></a-entity>
+        </a-scene>
+        <video id="cameraFeed" autoplay playsinline style="display: none;"></video>
+    </div>
+
     <script>
-      // iOS requires a user gesture to start camera feed
-      document.getElementById('start-ar').addEventListener('click', function() {
-        document.getElementById('ar-scene').style.display = '';
-        this.style.display = 'none';
-      });
+        const video = document.getElementById('cameraFeed');
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+            })
+            .catch(err => console.error('Error accessing camera: ', err));
     </script>
-  </body>
+</body>
 </html>
