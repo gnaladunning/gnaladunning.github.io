@@ -1,17 +1,21 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
   </head>
   <body style="margin: 0; overflow: hidden">
+    <button id="start-ar" style="position:absolute;z-index:2;top:10px;left:10px;">Start AR</button>
     <a-scene
       embedded
       arjs="sourceType: webcam; debugUIEnabled: false;"
       vr-mode-ui="enabled: false"
       renderer="logarithmicDepthBuffer: true; antialias: true;"
+      style="display:none;"
+      id="ar-scene"
     >
-      <!-- Marker: use Hiro marker or print your own -->
+      <!-- Hiro marker; you can use other presets or custom markers -->
       <a-marker preset="hiro">
         <a-entity
           geometry="primitive: plane; width: 2; height: 2"
@@ -20,49 +24,44 @@
           reflective-plane
         ></a-entity>
       </a-marker>
-
       <a-entity camera></a-entity>
-
-      <button id="start-ar">Start AR</button>
-<script>
-  document.getElementById('start-ar').addEventListener('click', function() {
-    // Manually start the scene or reload if needed
-    location.reload();
-  });
-</script>
-
-
       <script>
-        // Custom component to make a plane reflective using the camera feed
+        // Custom component for mirror effect
         AFRAME.registerComponent('reflective-plane', {
           init: function () {
-            // Wait for the AR.js video to be ready
-            var video = document.querySelector('video');
-            if (!video) {
-              setTimeout(this.init.bind(this), 500);
-              return;
-            }
-            var mesh = this.el.getObject3D('mesh');
-            if (!mesh) {
-              this.el.addEventListener('model-loaded', () => this.init());
-              return;
-            }
-            // Use the video as a texture
-            var texture = new THREE.VideoTexture(video);
-            texture.minFilter = THREE.LinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-            texture.format = THREE.RGBFormat;
-            mesh.material = new THREE.MeshPhongMaterial({
-              map: texture,
-              reflectivity: 0.9,
-              side: THREE.DoubleSide,
-              color: 0xffffff,
-              // For a simple mirror, you can use 'map' instead of 'envMap'
-              map: texture
-            });
+            const tryApplyTexture = () => {
+              const video = document.querySelector('video');
+              if (!video) {
+                setTimeout(tryApplyTexture, 300);
+                return;
+              }
+              const mesh = this.el.getObject3D('mesh');
+              if (!mesh) {
+                this.el.addEventListener('model-loaded', () => tryApplyTexture());
+                return;
+              }
+              const texture = new THREE.VideoTexture(video);
+              texture.minFilter = THREE.LinearFilter;
+              texture.magFilter = THREE.LinearFilter;
+              texture.format = THREE.RGBFormat;
+              mesh.material = new THREE.MeshPhongMaterial({
+                map: texture,
+                shininess: 100,
+                side: THREE.DoubleSide,
+                color: 0xffffff
+              });
+            };
+            tryApplyTexture();
           }
         });
       </script>
     </a-scene>
+    <script>
+      // iOS requires a user gesture to start camera feed
+      document.getElementById('start-ar').addEventListener('click', function() {
+        document.getElementById('ar-scene').style.display = '';
+        this.style.display = 'none';
+      });
+    </script>
   </body>
 </html>
