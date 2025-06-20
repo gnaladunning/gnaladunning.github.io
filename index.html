@@ -23,6 +23,15 @@
 
       <a-entity camera></a-entity>
 
+      <button id="start-ar">Start AR</button>
+<script>
+  document.getElementById('start-ar').addEventListener('click', function() {
+    // Manually start the scene or reload if needed
+    location.reload();
+  });
+</script>
+
+
       <script>
         // Custom component to make a plane reflective using the camera feed
         AFRAME.registerComponent('reflective-plane', {
