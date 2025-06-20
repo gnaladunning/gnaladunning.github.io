@@ -44,7 +44,7 @@
             texture.magFilter = THREE.LinearFilter;
             texture.format = THREE.RGBFormat;
             mesh.material = new THREE.MeshPhongMaterial({
-              envMap: texture,
+              map: texture,
               reflectivity: 0.9,
               side: THREE.DoubleSide,
               color: 0xffffff,
