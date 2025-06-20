@@ -1,24 +1,59 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
-    <script src="dynamic-reflection.js"></script>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
   </head>
-  <body>
-    <a-scene renderer="colorManagement:true; toneMapping: reinhard;">
-      <a-camera id="cam" wasd-controls="fly:true;">
-        <a-plane></a-plane>
-      </a-camera>
-      
-      <a-plane 
-               position="0 0 -4" rotation="-90 0 0" width="20" height="20" material="opacity:.5; side:double;" color="blue" dynamic-reflection="fps:100; moving:true;"
-                material="roughness:0.025;metalness:1;">
-      </a-plane>
-      
-      <a-sky 
-             src="https://cdn.glitch.global/c5820cc6-c0c8-4bfc-8f76-875fda50461d/pixexid-6308af11-7cac-4a02-8565-658f51e634a4.jpeg?v=1677207898664"
-      ></a-sky>
-    
+  <body style="margin: 0; overflow: hidden">
+    <a-scene
+      embedded
+      arjs="sourceType: webcam; debugUIEnabled: false;"
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true; antialias: true;"
+    >
+      <!-- Marker: use Hiro marker or print your own -->
+      <a-marker preset="hiro">
+        <a-entity
+          geometry="primitive: plane; width: 2; height: 2"
+          rotation="-90 0 0"
+          position="0 0 0"
+          reflective-plane
+        ></a-entity>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+
+      <script>
+        // Custom component to make a plane reflective using the camera feed
+        AFRAME.registerComponent('reflective-plane', {
+          init: function () {
+            // Wait for the AR.js video to be ready
+            var video = document.querySelector('video');
+            if (!video) {
+              setTimeout(this.init.bind(this), 500);
+              return;
+            }
+            var mesh = this.el.getObject3D('mesh');
+            if (!mesh) {
+              this.el.addEventListener('model-loaded', () => this.init());
+              return;
+            }
+            // Use the video as a texture
+            var texture = new THREE.VideoTexture(video);
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.format = THREE.RGBFormat;
+            mesh.material = new THREE.MeshPhongMaterial({
+              envMap: texture,
+              reflectivity: 0.9,
+              side: THREE.DoubleSide,
+              color: 0xffffff,
+              // For a simple mirror, you can use 'map' instead of 'envMap'
+              map: texture
+            });
+          }
+        });
+      </script>
     </a-scene>
   </body>
 </html>
