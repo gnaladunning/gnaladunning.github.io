@@ -1,35 +1,58 @@
-# WebAR Experience with Live Camera Reflection
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebAR Live Camera Reflection</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
-        body { margin: 0; }
-        #ar-container { position: absolute; width: 100%; height: 100%; }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #ar-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000;
+        }
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleY(-1); /* Flip the video for reflection effect */
+        }
+        #plane {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 200px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.5);
+            transform: translateX(-50%);
+            border: 2px solid #fff;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
     <div id="ar-container">
-        <a-scene embedded arjs>
-            <a-marker preset="hiro">
-                <a-plane position="0 0 0" rotation="-90 0 0" width="1" height="1" 
-                         material="shader: flat; src: #camera-feed;"></a-plane>
-            </a-marker>
-            <a-entity camera></a-entity>
-        </a-scene>
-        <video id="camera-feed" autoplay playsinline style="display: none;"></video>
+        <video id="video" autoplay playsinline muted></video>
+        <div id="plane"></div>
     </div>
+
     <script>
-        const video = document.getElementById('camera-feed');
+        const video = document.getElementById('video');
+
+        // Access the device camera
         navigator.mediaDevices.getUserMedia({ video: true })
             .then(stream => {
                 video.srcObject = stream;
-                video.play();
+            })
+            .catch(err => {
+                console.error("Error accessing the camera: ", err);
             });
     </script>
 </body>
