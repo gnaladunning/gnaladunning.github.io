@@ -1,11 +1,11 @@
-# WebAR Experience for iOS
+# WebAR Experience with Live Camera Reflection
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebAR Experience</title>
+    <title>WebAR Live Camera Reflection</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
@@ -17,11 +17,20 @@
     <div id="ar-container">
         <a-scene embedded arjs>
             <a-marker preset="hiro">
-                <a-plane position="0 0 0" rotation="-90 0 0" width="1" height="1" color="#7BC8A4" material="shader: flat; src: #video"></a-plane>
-                <a-video id="video" src="https://www.w3schools.com/html/mov_bbb.mp4" width="1" height="1" position="0 0 0"></a-video>
+                <a-plane position="0 0 0" rotation="-90 0 0" width="1" height="1" 
+                         material="shader: flat; src: #camera-feed;"></a-plane>
             </a-marker>
             <a-entity camera></a-entity>
         </a-scene>
+        <video id="camera-feed" autoplay playsinline style="display: none;"></video>
     </div>
+    <script>
+        const video = document.getElementById('camera-feed');
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+            });
+    </script>
 </body>
 </html>
