@@ -3,57 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebAR Experience</title>
+    <title>WebAR Experience with Hiro Marker</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-        #ar-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            background-color: #000;
-        }
-        #camera-feed {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleY(-1); /* Flip the camera feed for reflection effect */
-        }
-        #plane {
-            position: absolute;
-            bottom: 0;
-            left: 25%;
-            width: 50%;
-            height: 25%;
-            background-color: rgba(255, 255, 255, 0.5);
-            transform: translateX(-50%);
-            border-top: 2px solid #000;
-        }
+        body { margin: 0; }
+        #cameraFeed { display: none; }
     </style>
 </head>
-<body>
-    <div id="ar-container">
-        <video id="camera-feed" autoplay playsinline></video>
-        <div id="plane"></div>
-    </div>
+<body style="margin: 0; overflow: hidden;">
+    <a-scene embedded arjs='sourceType: webcam;'>
+        <a-marker preset="hiro">
+            <a-plane src="#cameraFeed" rotation="-90 0 0" width="1" height="1"></a-plane>
+        </a-marker>
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <video id="cameraFeed" autoplay playsinline></video>
 
     <script>
-        async function startCamera() {
-            const video = document.getElementById('camera-feed');
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = stream;
-            } catch (error) {
-                console.error("Error accessing the camera: ", error);
+        const video = document.getElementById('cameraFeed');
+        const constraints = {
+            video: {
+                facingMode: 'environment'
             }
-        }
+        };
 
-        window.onload = startCamera;
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then((stream) => {
+                video.srcObject = stream;
+                video.play();
+            })
+            .catch((error) => {
+                console.error('Error accessing the camera: ', error);
+            });
     </script>
 </body>
 </html>
