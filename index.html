@@ -1,4 +1,4 @@
-vironment# WebAR Experience with Live Front Camera Output
+# WebAR Experience for iOS
 
 <!DOCTYPE html>
 <html lang="en">
@@ -17,21 +17,11 @@ vironment# WebAR Experience with Live Front Camera Output
     <div id="ar-container">
         <a-scene embedded arjs>
             <a-marker preset="hiro">
-                <a-plane src="#cameraFeed" rotation="-90 0 0" width="1" height="1"></a-plane>
+                <a-plane position="0 0 0" rotation="-90 0 0" width="1" height="1" color="#7BC8A4" material="shader: flat; src: #video"></a-plane>
+                <a-video id="video" src="https://www.w3schools.com/html/mov_bbb.mp4" width="1" height="1" position="0 0 0"></a-video>
             </a-marker>
             <a-entity camera></a-entity>
         </a-scene>
-        <video id="cameraFeed" autoplay playsinline style="display: none;"></video>
     </div>
-
-    <script>
-        const video = document.getElementById('cameraFeed');
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-            .then(stream => {
-                video.srcObject = stream;
-                video.play();
-            })
-            .catch(err => console.error('Error accessing camera: ', err));
-    </script>
 </body>
 </html>
