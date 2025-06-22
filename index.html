@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Speech-to-Text Experience (One Word)</title>
+  <title>AR Audio Level to Text Size (HIRO Marker)</title>
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
   <style>
-    /* Center the button */
     #startButton {
       position: fixed;
       top: 50%;
@@ -28,28 +27,29 @@
 <body style="margin:0; overflow:hidden;">
   <!-- Centered Start Listening Button -->
   <button id="startButton">Start Listening</button>
-
   <a-scene embedded arjs="sourceType: webcam;" vr-mode-ui="enabled: false">
+    <a-marker preset="hiro">
       <a-entity id="spokenText"
-        text="value: LISTENING...; color: #FF3C3C; align: center; width: 5;"
+        text="value: Say something...; color: #FF3C3C; align: center; width: 5; anchor: center;"
         position="0 2 0"
-        rotation="0 0 0">
+        rotation="-90 0 0"
+        scale="1 1 1">
       </a-entity>
+    </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
+    let recognition, audioContext, analyser, micSource, dataArray;
+    let lastWord = '';
+    let spokenTextEntity = document.getElementById('spokenText');
+
+    // Speech Recognition Setup
     window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    let recognition;
-    if (!window.SpeechRecognition) {
-      alert('Sorry, Speech Recognition is not supported on this device/browser.');
-    } else {
+    if (window.SpeechRecognition) {
       recognition = new window.SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
-
-      let spokenTextEntity = document.getElementById('spokenText');
-      let lastWord = '';
 
       recognition.onresult = function(event) {
         let transcript = '';
@@ -64,11 +64,47 @@
       recognition.onerror = function(event) {
         console.error(event.error);
       };
+    } else {
+      alert('Sorry, Speech Recognition is not supported on this device/browser.');
     }
 
-    // Add event listener to the button
+    // Audio Level Setup
+    function startMicLevel() {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        micSource = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        micSource.connect(analyser);
+        animateTextScale();
+      }).catch(function(err) {
+        alert('Microphone access denied or not available.');
+      });
+    }
+
+    function animateTextScale() {
+      function updateScale() {
+        if (!analyser) return;
+        analyser.getByteTimeDomainData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          let val = (dataArray[i] - 128) / 128;
+          sum += Math.abs(val);
+        }
+        let average = sum / dataArray.length;
+        // Scale between 1 and 3 based on loudness
+        let scale = 1 + average * 6;
+        spokenTextEntity.setAttribute('scale', `${scale} ${scale} ${scale}`);
+        requestAnimationFrame(updateScale);
+      }
+      updateScale();
+    }
+
+    // Start everything on button click
     document.getElementById('startButton').addEventListener('click', function() {
       if (recognition) recognition.start();
+      startMicLevel();
       this.style.display = 'none';
     });
   </script>
