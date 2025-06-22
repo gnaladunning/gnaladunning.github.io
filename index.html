@@ -35,30 +35,30 @@
   <script>
     let recognition;
     let marker = document.getElementById('hiroMarker');
-    let wordCount = 0;
+    let addedWords = new Set();
 
-    // Helper to generate a random position within a cube centered on the marker
+    // Helper to generate a random position in front of the marker
     function getRandomPosition() {
-      // X and Y positions within [-2, 2] for a good spread, Z fixed at 0
-      let x = (Math.random() - 0.5) * 4;
-      let y = 1.2 + Math.random() * 2; // keep above marker
-      let z = (Math.random() - 0.5) * 2;
+      // Spread words within a reasonable area above the marker
+      let x = (Math.random() - 0.5) * 4; // -2 to 2
+      let y = 1.2 + Math.random() * 2;   // 1.2 to 3.2
+      let z = (Math.random() - 0.5) * 2; // -1 to 1
       return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
     }
 
-    // Adds a new word as a floating A-Frame entity
+    // Adds a new word entity in the AR scene
     function addWord(word) {
-      wordCount++;
+      if (!word || addedWords.has(word.toLowerCase())) return;
+      addedWords.add(word.toLowerCase());
+
       let entity = document.createElement('a-entity');
       entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
       entity.setAttribute('position', getRandomPosition());
       entity.setAttribute('rotation', '-90 0 0');
-      entity.setAttribute('scale', '2 2 2'); // Large text
-      entity.setAttribute('id', 'word'+wordCount);
+      entity.setAttribute('scale', '2 2 2');
       marker.appendChild(entity);
     }
 
-    // Start recognition on button click
     document.getElementById('startButton').addEventListener('click', function() {
       window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (window.SpeechRecognition) {
@@ -67,7 +67,7 @@
         recognition.interimResults = true;
         recognition.lang = 'en-US';
 
-        let lastSpoken = '';
+        let lastTranscript = '';
 
         recognition.onresult = function(event) {
           let transcript = '';
@@ -75,15 +75,9 @@
             transcript += event.results[i][0].transcript;
           }
           transcript = transcript.trim();
-          // Only add new words not already added in this session
+          // Only add new words, not already shown
           let words = transcript.split(/\s+/);
-          if (words.length === 0) return;
-          // Only process words that haven't been placed yet
-          if (words[words.length - 1] && words[words.length - 1] !== lastSpoken) {
-            let newWord = words[words.length - 1];
-            addWord(newWord);
-            lastSpoken = newWord;
-          }
+          words.forEach(word => addWord(word));
         };
 
         recognition.onerror = function(event) {
