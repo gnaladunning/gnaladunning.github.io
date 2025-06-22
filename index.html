@@ -2,64 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Cube with Audio Reactive Dimensions</title>
+  <title>AR Speech-to-Text Experience</title>
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <button id="startButton" style="position:absolute;z-index:2;top:20px;left:50%;transform:translateX(-50%);padding:1em;font-size:1.2em;">Start AR Experience</button>
   <a-scene embedded arjs="sourceType: webcam;" vr-mode-ui="enabled: false">
     <a-marker preset="hiro">
-      <a-box id="audioCube" position="0 0.5 0" color="#4CC3D9" depth="1" height="1" width="1"></a-box>
+      <a-entity id="spokenText"
+        text="value: Say something...; color: #FF3C3C; align: center; width: 2;"
+        position="0 1 0"
+        rotation="-90 0 0">
+      </a-entity>
     </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
-    let audioContext, analyser, dataArray, source;
-    let running = false;
+    // Check for Web Speech API support
+    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!window.SpeechRecognition) {
+      alert('Sorry, Speech Recognition is not supported on this device/browser.');
+    } else {
+      const recognition = new window.SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
 
-    const startButton = document.getElementById('startButton');
-    startButton.addEventListener('click', function () {
-      this.style.display = 'none';
-      initAudio();
-    });
+      let spokenTextEntity = document.getElementById('spokenText');
+      let finalTranscript = '';
 
-    function initAudio() {
-      if (running) return;
-      running = true;
-      navigator.mediaDevices.getUserMedia({audio: true})
-        .then(function (stream) {
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          source = audioContext.createMediaStreamSource(stream);
-          analyser = audioContext.createAnalyser();
-          analyser.fftSize = 256;
-          dataArray = new Uint8Array(analyser.frequencyBinCount);
-          source.connect(analyser);
-          animateCube();
-        })
-        .catch(function (err) {
-          alert('Microphone access denied or not available.');
-        });
-    }
-
-    function animateCube() {
-      const cube = document.querySelector('#audioCube');
-      function updateCube() {
-        if (!analyser) return;
-        analyser.getByteTimeDomainData(dataArray);
-        // Calculate average amplitude
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          let val = (dataArray[i] - 128) / 128;
-          sum += Math.abs(val);
+      recognition.onresult = function(event) {
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
         }
-        let average = sum / dataArray.length;
-        // Scale cube between 0.5 and 2 based on volume
-        let scale = 0.5 + average * 3;
-        cube.setAttribute('scale', `${scale} ${scale} ${scale}`);
-        requestAnimationFrame(updateCube);
-      }
-      updateCube();
+        let displayText = finalTranscript + interimTranscript;
+        // Limit to last 50 characters for better display
+        if (displayText.length > 50) displayText = displayText.slice(-50);
+        spokenTextEntity.setAttribute('text', 'value', displayText ? displayText : 'Say something...');
+      };
+
+      recognition.onerror = function(event) {
+        console.error(event.error);
+      };
+
+      // Start recognition after user gesture (required by iOS)
+      window.addEventListener('touchend', function startSpeechOnce() {
+        recognition.start();
+        window.removeEventListener('touchend', startSpeechOnce);
+      });
     }
   </script>
 </body>
