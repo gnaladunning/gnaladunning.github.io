@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AR Persistent Box</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="aframe.min.js"></script>
+    <script src="aframe-ar.js"></script>
     <style>
         body { margin: 0; }
         a-scene { height: 100vh; }
@@ -13,31 +13,31 @@
 </head>
 <body>
     <a-scene embedded arjs>
-        <a-marker preset="hiro" id="hiroMarker">
-            <a-box id="persistentBox" position="0 0.5 0" material="color: red"></a-box>
+        <a-marker preset="hiro" id="marker">
+            <a-box id="box" position="0 0.5 0" material="color: blue"></a-box>
         </a-marker>
         <a-entity camera></a-entity>
     </a-scene>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            var box = document.getElementById('persistentBox');
-            var marker = document.getElementById('hiroMarker');
-            var scene = document.querySelector('a-scene');
-            var boxPersisted = false;
+            const marker = document.getElementById('marker');
+            const box = document.getElementById('box');
+            const scene = document.querySelector('a-scene');
+            let persisted = false;
 
             marker.addEventListener('markerFound', function () {
-                if (!boxPersisted) {
-                    // Get the box's world position relative to the scene
-                    var worldPosition = new THREE.Vector3();
-                    box.object3D.getWorldPosition(worldPosition);
+                if (!persisted) {
+                    // Get box's world position
+                    const worldPos = new THREE.Vector3();
+                    box.object3D.getWorldPosition(worldPos);
 
-                    // Detach the box from the marker and add it directly to the scene
+                    // Detach box from marker and add to scene
                     marker.removeChild(box);
                     scene.appendChild(box);
 
-                    // Set box's position in the world coordinates
-                    box.setAttribute('position', `${worldPosition.x} ${worldPosition.y} ${worldPosition.z}`);
-                    boxPersisted = true;
+                    // Set box's world position
+                    box.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
+                    persisted = true;
                 }
             });
         });
