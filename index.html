@@ -93,8 +93,8 @@
           sum += Math.abs(val);
         }
         let average = sum / dataArray.length;
-        // Scale between 1 and 3 based on loudness
-        let scale = 1 + average * 6;
+        // Scale between 1 and 3 based on loudness (clamp for stability)
+        let scale = Math.max(1, Math.min(3, 1 + average * 6));
         spokenTextEntity.setAttribute('scale', `${scale} ${scale} ${scale}`);
         requestAnimationFrame(updateScale);
       }
