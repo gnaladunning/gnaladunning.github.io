@@ -29,7 +29,7 @@
   <a-scene embedded arjs="sourceType: webcam;" vr-mode-ui="enabled: false">
     <a-marker preset="hiro">
       <a-entity id="spokenText"
-        text="value: listening...; color: #FF3C3C; align: center; width: 5; anchor: center;"
+        text="value: listening...; color: #FF3C3C; align: center; anchor: center; width: 5;"
         position="0 2 0"
         rotation="-90 0 0"
         scale="1 1 1">
@@ -40,7 +40,7 @@
   <script>
     let recognition, audioContext, analyser, micSource, dataArray;
     let lastWord = '';
-    let spokenTextEntity = document.getElementById('spokenText');
+    const spokenTextEntity = document.getElementById('spokenText');
 
     // Pitch detection function (autocorrelation)
     function autoCorrelate(buffer, sampleRate) {
@@ -93,6 +93,7 @@
           hue = 0; // fallback to red if out of voice range
         }
         let color = `hsl(${hue}, 90%, 55%)`;
+        // Update ONLY the color and value, not position or scale
         spokenTextEntity.setAttribute('text', 'color', color);
         requestAnimationFrame(updateColor);
       }
@@ -115,6 +116,7 @@
           }
           let words = transcript.trim().split(/\s+/);
           lastWord = words[words.length - 1] || '';
+          // Update ONLY the value, not position or scale
           spokenTextEntity.setAttribute('text', 'value', lastWord ? lastWord : 'Say something...');
         };
 
