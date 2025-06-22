@@ -25,7 +25,6 @@
   </style>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <!-- Centered Start Listening Button -->
   <button id="startButton">Start Listening</button>
   <a-scene embedded arjs="sourceType: webcam;" vr-mode-ui="enabled: false">
     <a-marker preset="hiro">
@@ -43,49 +42,8 @@
     let lastWord = '';
     let spokenTextEntity = document.getElementById('spokenText');
 
-    // Speech Recognition Setup
-    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (window.SpeechRecognition) {
-      recognition = new window.SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = function(event) {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          transcript = event.results[i][0].transcript;
-        }
-        let words = transcript.trim().split(/\s+/);
-        lastWord = words[words.length - 1] || '';
-        spokenTextEntity.setAttribute('text', 'value', lastWord ? lastWord : 'Say something...');
-      };
-
-      recognition.onerror = function(event) {
-        console.error(event.error);
-      };
-    } else {
-      alert('Sorry, Speech Recognition is not supported on this device/browser.');
-    }
-
-    // Audio Pitch Detection Setup
-    function startMicPitch() {
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        micSource = audioContext.createMediaStreamSource(stream);
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-        dataArray = new Float32Array(analyser.fftSize);
-        micSource.connect(analyser);
-        animateTextColor();
-      }).catch(function(err) {
-        alert('Microphone access denied or not available.');
-      });
-    }
-
-    // Basic pitch detection using autocorrelation
+    // Pitch detection function (autocorrelation)
     function autoCorrelate(buffer, sampleRate) {
-      // Implements the ACF method, returns fundamental frequency in Hz or -1 if not found
       let SIZE = buffer.length;
       let rms = 0;
       for (let i = 0; i < SIZE; i++) {
@@ -94,7 +52,6 @@
       }
       rms = Math.sqrt(rms / SIZE);
       if (rms < 0.01) return -1; // too quiet
-
       let r1 = 0, r2 = SIZE - 1, thres = 0.2;
       for (let i = 0; i < SIZE / 2; i++) {
         if (Math.abs(buffer[i]) < thres) { r1 = i; break; }
@@ -102,10 +59,8 @@
       for (let i = 1; i < SIZE / 2; i++) {
         if (Math.abs(buffer[SIZE - i]) < thres) { r2 = SIZE - i; break; }
       }
-
       buffer = buffer.slice(r1, r2);
       SIZE = buffer.length;
-
       let c = new Array(SIZE).fill(0);
       for (let i = 0; i < SIZE; i++) {
         for (let j = 0; j < SIZE - i; j++) {
@@ -126,5 +81,68 @@
     }
 
     function animateTextColor() {
-      function updateColor()*
-
+      function updateColor() {
+        if (!analyser) return;
+        analyser.getFloatTimeDomainData(dataArray);
+        let pitch = autoCorrelate(dataArray, audioContext.sampleRate);
+        // Map pitch to hue: 80Hz (low) => 0deg (red), 400Hz (high) => 270deg (purple)
+        let hue;
+        if (pitch > 80 && pitch < 400) {
+          hue = Math.floor(((pitch - 80) / (400 - 80)) * 270);
+        } else {
+          hue = 0; // fallback to red if out of voice range
+        }
+        let color = `hsl(${hue}, 90%, 55%)`;
+        spokenTextEntity.setAttribute('text', 'color', color);
+        requestAnimationFrame(updateColor);
+      }
+      updateColor();
+    }
+
+    document.getElementById('startButton').addEventListener('click', function() {
+      // Start Speech Recognition
+      window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (window.SpeechRecognition) {
+        recognition = new window.SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = function(event) {
+          let transcript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            transcript = event.results[i][0].transcript;
+          }
+          let words = transcript.trim().split(/\s+/);
+          lastWord = words[words.length - 1] || '';
+          spokenTextEntity.setAttribute('text', 'value', lastWord ? lastWord : 'Say something...');
+        };
+
+        recognition.onerror = function(event) {
+          console.error(event.error);
+        };
+
+        recognition.start();
+      } else {
+        alert('Sorry, Speech Recognition is not supported on this device/browser.');
+      }
+
+      // Start Microphone and Pitch Detection
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        micSource = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        dataArray = new Float32Array(analyser.fftSize);
+        micSource.connect(analyser);
+        animateTextColor();
+      }).catch(function(err) {
+        alert('Microphone access denied or not available.');
+      });
+
+      // Hide button after starting
+      this.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
