@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>AR Word Scatter (Mobile & Marker Friendly)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <script src="aframe.min.js"></script>
+  <script src="aframe-ar.js"></script>
   <style>
     #startButton {
       position: fixed;
@@ -34,8 +34,8 @@
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
+    <!-- Initial text as a child of the marker -->
     <a-marker preset="hiro" id="hiroMarker">
-      <!-- Initial text always above marker -->
       <a-entity id="initialText"
         text="value: listening; color: #FF3C3C; align: center; anchor: center; width: 3;"
         position="0 2 0"
@@ -43,16 +43,16 @@
         scale="2 2 2"
         visible="true"></a-entity>
     </a-marker>
-    <!-- Persistent words are added to the scene, not to the marker -->
+    <!-- Recognized words get added here, so they persist even if marker is lost -->
     <a-entity id="wordsRoot"></a-entity>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
     let recognition;
     const wordsRoot = document.getElementById('wordsRoot');
+    const initialText = document.getElementById('initialText');
     let addedWords = new Set();
     let wordPositions = {};
-    const initialText = document.getElementById('initialText');
     let firstWordAdded = false;
 
     function getRandomPositionForWord(word) {
@@ -85,6 +85,7 @@
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
+      // Start only after user gesture for mobile compatibility
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
           window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
