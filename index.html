@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Speech-to-Text Experience</title>
+  <title>AR Speech-to-Text Experience (One Word)</title>
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
 </head>
@@ -29,21 +29,18 @@
       recognition.lang = 'en-US';
 
       let spokenTextEntity = document.getElementById('spokenText');
-      let finalTranscript = '';
+      let lastWord = '';
 
       recognition.onresult = function(event) {
-        let interimTranscript = '';
+        let transcript = '';
+        // Prefer most recent, interim or final result
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
+          transcript = event.results[i][0].transcript;
         }
-        let displayText = finalTranscript + interimTranscript;
-        // Limit to last 50 characters for better display
-        if (displayText.length > 50) displayText = displayText.slice(-50);
-        spokenTextEntity.setAttribute('text', 'value', displayText ? displayText : 'Say something...');
+        // Extract the last spoken word (ignore punctuation)
+        let words = transcript.trim().split(/\s+/);
+        lastWord = words[words.length - 1] || '';
+        spokenTextEntity.setAttribute('text', 'value', lastWord ? lastWord : 'Say something...');
       };
 
       recognition.onerror = function(event) {
