@@ -5,25 +5,47 @@
   <title>AR Speech-to-Text Experience (One Word)</title>
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <style>
+    /* Center the button */
+    #startButton {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      padding: 1em 2em;
+      background: #ff3c3c;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.5em;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    }
+  </style>
 </head>
 <body style="margin:0; overflow:hidden;">
+  <!-- Centered Start Listening Button -->
+  <button id="startButton">Start Listening</button>
+
   <a-scene embedded arjs="sourceType: webcam;" vr-mode-ui="enabled: false">
     <a-marker preset="hiro">
       <a-entity id="spokenText"
-        text="value: LISTENING...; color: #FF3C3C; align: center; width: 10;"
-        position="0 1 0"
-        rotation="0 0 0">
+        text="value: Say something...; color: #FF3C3C; align: center; width: 5;"
+        position="0 2 0"
+        rotation="-90 0 0">
       </a-entity>
     </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
-    // Check for Web Speech API support
     window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
     if (!window.SpeechRecognition) {
       alert('Sorry, Speech Recognition is not supported on this device/browser.');
     } else {
-      const recognition = new window.SpeechRecognition();
+      recognition = new window.SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
@@ -33,11 +55,9 @@
 
       recognition.onresult = function(event) {
         let transcript = '';
-        // Prefer most recent, interim or final result
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           transcript = event.results[i][0].transcript;
         }
-        // Extract the last spoken word (ignore punctuation)
         let words = transcript.trim().split(/\s+/);
         lastWord = words[words.length - 1] || '';
         spokenTextEntity.setAttribute('text', 'value', lastWord ? lastWord : 'Say something...');
@@ -46,13 +66,13 @@
       recognition.onerror = function(event) {
         console.error(event.error);
       };
-
-      // Start recognition after user gesture (required by iOS)
-      window.addEventListener('touchend', function startSpeechOnce() {
-        recognition.start();
-        window.removeEventListener('touchend', startSpeechOnce);
-      });
     }
+
+    // Add event listener to the button
+    document.getElementById('startButton').addEventListener('click', function() {
+      if (recognition) recognition.start();
+      this.style.display = 'none';
+    });
   </script>
 </body>
 </html>
