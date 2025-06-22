@@ -1,42 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebAR Experience with Hiro Marker</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <style>
-        body { margin: 0; }
-        #cameraFeed { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <title>AR Cube with Audio Reactive Dimensions</title>
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
 </head>
-<body style="margin: 0; overflow: hidden;">
-    <a-scene embedded arjs='sourceType: webcam;'>
-        <a-marker preset="hiro">
-            <a-plane src="#cameraFeed" rotation="-90 0 0" width="1" height="1"></a-plane>
-        </a-marker>
-        <a-entity camera></a-entity>
-    </a-scene>
+<body style="margin:0; overflow:hidden;">
+  <button id="startButton" style="position:absolute;z-index:2;top:20px;left:50%;transform:translateX(-50%);padding:1em;font-size:1.2em;">Start AR Experience</button>
+  <a-scene embedded arjs="sourceType: webcam;" vr-mode-ui="enabled: false">
+    <a-marker preset="hiro">
+      <a-box id="audioCube" position="0 0.5 0" color="#4CC3D9" depth="1" height="1" width="1"></a-box>
+    </a-marker>
+    <a-entity camera></a-entity>
+  </a-scene>
+  <script>
+    let audioContext, analyser, dataArray, source;
+    let running = false;
 
-    <video id="cameraFeed" autoplay playsinline></video>
+    const startButton = document.getElementById('startButton');
+    startButton.addEventListener('click', function () {
+      this.style.display = 'none';
+      initAudio();
+    });
 
-    <script>
-        const video = document.getElementById('cameraFeed');
-        const constraints = {
-            video: {
-                facingMode: 'environment'
-            }
-        };
+    function initAudio() {
+      if (running) return;
+      running = true;
+      navigator.mediaDevices.getUserMedia({audio: true})
+        .then(function (stream) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          source = audioContext.createMediaStreamSource(stream);
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          dataArray = new Uint8Array(analyser.frequencyBinCount);
+          source.connect(analyser);
+          animateCube();
+        })
+        .catch(function (err) {
+          alert('Microphone access denied or not available.');
+        });
+    }
 
-        navigator.mediaDevices.getUserMedia(constraints)
-            .then((stream) => {
-                video.srcObject = stream;
-                video.play();
-            })
-            .catch((error) => {
-                console.error('Error accessing the camera: ', error);
-            });
-    </script>
+    function animateCube() {
+      const cube = document.querySelector('#audioCube');
+      function updateCube() {
+        if (!analyser) return;
+        analyser.getByteTimeDomainData(dataArray);
+        // Calculate average amplitude
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          let val = (dataArray[i] - 128) / 128;
+          sum += Math.abs(val);
+        }
+        let average = sum / dataArray.length;
+        // Scale cube between 0.5 and 2 based on volume
+        let scale = 0.5 + average * 3;
+        cube.setAttribute('scale', `${scale} ${scale} ${scale}`);
+        requestAnimationFrame(updateCube);
+      }
+      updateCube();
+    }
+  </script>
 </body>
 </html>
