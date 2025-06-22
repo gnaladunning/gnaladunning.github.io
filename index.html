@@ -34,20 +34,27 @@
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
-    <a-marker preset="hiro" id="hiroMarker"></a-marker>
+    <a-marker preset="hiro" id="hiroMarker">
+      <!-- Initial text always above marker -->
+      <a-entity id="initialText"
+        text="value: Say something...; color: #FF3C3C; align: center; anchor: center; width: 3;"
+        position="0 2 0"
+        rotation="-90 0 0"
+        scale="2 2 2"></a-entity>
+    </a-marker>
     <!-- Persistent words are added to the scene, not to the marker -->
     <a-entity id="wordsRoot"></a-entity>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
-    // Ensures compatibility and persistence for iOS and Android browsers
     let recognition;
     const wordsRoot = document.getElementById('wordsRoot');
     let addedWords = new Set();
     let wordPositions = {};
+    const initialText = document.getElementById('initialText');
+    let firstWordAdded = false;
 
     function getRandomPositionForWord(word) {
-      // Return the same position for a word if already placed
       if (wordPositions[word.toLowerCase()]) return wordPositions[word.toLowerCase()];
       let x = (Math.random() - 0.5) * 4; // -2 to 2
       let y = 1.5 + Math.random() * 2;   // 1.5 to 3.5
@@ -60,6 +67,12 @@
     function addWord(word) {
       if (!word || addedWords.has(word.toLowerCase())) return;
       addedWords.add(word.toLowerCase());
+
+      // Hide the initial prompt once the first word is added
+      if (!firstWordAdded) {
+        initialText.setAttribute('visible', 'false');
+        firstWordAdded = true;
+      }
 
       let entity = document.createElement('a-entity');
       entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
