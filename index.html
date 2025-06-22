@@ -30,13 +30,11 @@
   <button id="startButton">Start Listening</button>
 
   <a-scene embedded arjs="sourceType: webcam;" vr-mode-ui="enabled: false">
-    <a-marker preset="hiro">
       <a-entity id="spokenText"
-        text="value: Say something...; color: #FF3C3C; align: center; width: 5;"
+        text="value: LISTENING...; color: #FF3C3C; align: center; width: 5;"
         position="0 2 0"
-        rotation="-90 0 0">
+        rotation="0 0 0">
       </a-entity>
-    </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
