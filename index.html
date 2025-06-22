@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Word Scatter (HIRO Marker, Always Active)</title>
+  <title>AR Word Scatter (Mobile & Marker Friendly)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
@@ -35,25 +35,22 @@
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
     <a-marker preset="hiro" id="hiroMarker"></a-marker>
-    <!-- Word entities will be added here, not as children of the marker -->
+    <!-- Persistent words are added to the scene, not to the marker -->
     <a-entity id="wordsRoot"></a-entity>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
+    // Ensures compatibility and persistence for iOS and Android browsers
     let recognition;
     const wordsRoot = document.getElementById('wordsRoot');
     let addedWords = new Set();
-
-    // Keep a mapping of words to their positions for permanence
     let wordPositions = {};
 
-    // Returns a random position near where the marker would be (above origin)
     function getRandomPositionForWord(word) {
-      // If already has position, use that
+      // Return the same position for a word if already placed
       if (wordPositions[word.toLowerCase()]) return wordPositions[word.toLowerCase()];
-      // Otherwise, generate a new one and store it
       let x = (Math.random() - 0.5) * 4; // -2 to 2
-      let y = 1.2 + Math.random() * 2;   // 1.2 to 3.2
+      let y = 1.5 + Math.random() * 2;   // 1.5 to 3.5
       let z = (Math.random() - 0.5) * 2; // -1 to 1
       let pos = `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
       wordPositions[word.toLowerCase()] = pos;
