@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Word Scatter (Markerless, Mobile Ready)</title>
+  <title>AR Word Scatter (Surrounded, Markerless)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
@@ -34,7 +34,7 @@
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
-    <!-- Words will be added here dynamically (markerless AR) -->
+    <!-- Words appear all around the camera, no marker needed -->
     <a-entity camera></a-entity>
   </a-scene>
   <script>
@@ -43,10 +43,15 @@
     let addedWords = new Set();
 
     function getRandomPosition() {
-      // Spread words in front of the camera at different heights/depths
-      let x = (Math.random() - 0.5) * 4; // -2 to 2
-      let y = 1 + Math.random() * 2;     // 1 to 3
-      let z = -2 - Math.random() * 3;    // -2 to -5 (in front of camera)
+      // Random position within a sphere of radius 2-4 units around the camera
+      let r = 2 + Math.random() * 2;
+      let theta = Math.random() * 2 * Math.PI; // azimuthal angle
+      let phi = Math.acos(2 * Math.random() - 1); // polar angle
+
+      let x = r * Math.sin(phi) * Math.cos(theta);
+      let y = r * Math.cos(phi);
+      let z = r * Math.sin(phi) * Math.sin(theta);
+
       return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
     }
 
