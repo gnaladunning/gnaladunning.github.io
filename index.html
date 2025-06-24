@@ -71,40 +71,4 @@
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
           window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-          if (window.SpeechRecognition) {
-            recognition = new window.SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
-
-            recognition.onresult = function(event) {
-              let transcript = '';
-              for (let i = event.resultIndex; i < event.results.length; ++i) {
-                transcript += event.results[i][0].transcript;
-              }
-              transcript = transcript.trim();
-              let words = transcript.split(/\s+/);
-              words.forEach(word => addWord(word));
-            };
-
-            recognition.onerror = function(event) {
-              if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-                alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
-              }
-              console.error(event.error);
-            };
-
-            recognition.start();
-          } else {
-            alert('Sorry, Speech Recognition is not supported on this device/browser.');
-          }
-        })
-        .catch(function(err) {
-          alert('Microphone access denied or not available. Please enable microphone access in your browser settings.');
-        });
-
-      this.style.display = 'none';
-    });
-  </script>
-</body>
-</html>
+          if (window
