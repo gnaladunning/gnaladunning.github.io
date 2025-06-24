@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Word Scatter (HIRO Marker, Mobile Ready)</title>
+  <title>AR Word Scatter (Markerless, Mobile Ready)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
@@ -34,25 +34,19 @@
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
-    <a-marker preset="hiro" id="hiroMarker">
-      <!-- Words will be added here dynamically -->
-    </a-marker>
+    <!-- Words will be added here dynamically (markerless AR) -->
     <a-entity camera></a-entity>
   </a-scene>
   <script>
-    // Fixes for iOS and Android compatibility
-    // - Start all audio and speech APIs only after a user gesture
-    // - Avoids using features that require special permissions not supported on mobile
-
     let recognition;
-    let marker = document.getElementById('hiroMarker');
+    let scene = document.querySelector('a-scene');
     let addedWords = new Set();
 
     function getRandomPosition() {
-      // Spread words within a reasonable area above the marker
+      // Spread words in front of the camera at different heights/depths
       let x = (Math.random() - 0.5) * 4; // -2 to 2
-      let y = 1.2 + Math.random() * 2;   // 1.2 to 3.2
-      let z = (Math.random() - 0.5) * 2; // -1 to 1
+      let y = 1 + Math.random() * 2;     // 1 to 3
+      let z = -2 - Math.random() * 3;    // -2 to -5 (in front of camera)
       return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
     }
 
@@ -63,16 +57,14 @@
       let entity = document.createElement('a-entity');
       entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
       entity.setAttribute('position', getRandomPosition());
-      entity.setAttribute('rotation', '-90 0 0');
+      entity.setAttribute('rotation', '0 0 0');
       entity.setAttribute('scale', '2 2 2');
-      marker.appendChild(entity);
+      scene.appendChild(entity);
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
-      // Request microphone access up front to trigger iOS Safari permission dialog
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
-          // Use Web Speech API for speech recognition
           window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (window.SpeechRecognition) {
             recognition = new window.SpeechRecognition();
@@ -91,7 +83,6 @@
             };
 
             recognition.onerror = function(event) {
-              // Some Android devices require another user gesture if not allowed at first
               if (event.error === "not-allowed" || event.error === "service-not-allowed") {
                 alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
               }
