@@ -35,7 +35,7 @@
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
     <a-marker preset="hiro" id="hiroMarker">
-      <!-- Marker still required for AR.js, but words are placed in scene -->
+      <!-- Marker required for AR.js, but words are placed in scene -->
     </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
@@ -53,53 +53,60 @@
     function addWord(word) {
       if (!word || addedWords.has(word.toLowerCase())) return;
       addedWords.add(word.toLowerCase());
-
       let entity = document.createElement('a-entity');
       entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
       entity.setAttribute('position', getRandomPosition());
       entity.setAttribute('rotation', '-90 0 0');
       entity.setAttribute('scale', '2 2 2');
-      // Add to the scene instead of the marker for persistence
       document.querySelector('a-scene').appendChild(entity);
+      console.log("Word added:", word);
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
+      // Feature detection for SpeechRecognition
+      window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!window.SpeechRecognition) {
+        alert('Sorry, Speech Recognition is not supported on this device/browser.');
+        return;
+      }
+
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
-          window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-          if (window.SpeechRecognition) {
-            recognition = new window.SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
+          recognition = new window.SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = false; // Only final results
 
-            recognition.onresult = function(event) {
-              let transcript = '';
-              for (let i = event.resultIndex; i < event.results.length; ++i) {
-                transcript += event.results[i][0].transcript;
+          recognition.lang = 'en-US';
+
+          recognition.onresult = function(event) {
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              if (event.results[i].isFinal) {
+                let transcript = event.results[i][0].transcript.trim();
+                console.log("Transcript:", transcript);
+                // Split on whitespace and add each word
+                let words = transcript.split(/\s+/);
+                words.forEach(word => addWord(word));
               }
-              transcript = transcript.trim();
-              let words = transcript.split(/\s+/);
-              words.forEach(word => addWord(word));
-            };
+            }
+          };
 
-            recognition.onerror = function(event) {
-              if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-                alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
-              }
-              console.error(event.error);
-            };
+          recognition.onerror = function(event) {
+            alert('Speech recognition error: ' + event.error);
+            console.error("Speech recognition error:", event.error);
+          };
 
+          recognition.onend = function() {
+            // Restart listening automatically
             recognition.start();
-          } else {
-            alert('Sorry, Speech Recognition is not supported on this device/browser.');
-          }
+          };
+
+          recognition.start();
+          document.getElementById('startButton').style.display = 'none';
         })
         .catch(function(err) {
           alert('Microphone access denied or not available. Please enable microphone access in your browser settings.');
+          console.error("Microphone access error:", err);
         });
-
-      this.style.display = 'none';
     });
   </script>
 </body>
