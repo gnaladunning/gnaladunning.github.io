@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Word Scatter (Surrounded & Pannable, Markerless)</title>
+  <title>AR Word Scatter (With Start Marker)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
@@ -34,7 +34,16 @@
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
-    <!-- Enable look-controls and wasd-controls for camera panning and movement -->
+    <!-- Start Marker -->
+    <a-entity position="0 1.6 0">
+      <a-sphere radius="0.15" color="#FFD700"></a-sphere>
+      <a-entity
+        text="value: Start; color: #222; align: center; width: 2;"
+        position="0 0.3 0"
+        rotation="-90 0 0">
+      </a-entity>
+    </a-entity>
+    <!-- Camera with look controls -->
     <a-entity camera look-controls wasd-controls position="0 1.6 0"></a-entity>
   </a-scene>
   <script>
@@ -49,7 +58,7 @@
       let phi = Math.acos(2 * Math.random() - 1);
 
       let x = r * Math.sin(phi) * Math.cos(theta);
-      let y = r * Math.cos(phi);
+      let y = 1.6 + r * Math.cos(phi); // Centered around camera height
       let z = r * Math.sin(phi) * Math.sin(theta);
 
       return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
@@ -71,4 +80,40 @@
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
           window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-          if (window
+          if (window.SpeechRecognition) {
+            recognition = new window.SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = function(event) {
+              let transcript = '';
+              for (let i = event.resultIndex; i < event.results.length; ++i) {
+                transcript += event.results[i][0].transcript;
+              }
+              transcript = transcript.trim();
+              let words = transcript.split(/\s+/);
+              words.forEach(word => addWord(word));
+            };
+
+            recognition.onerror = function(event) {
+              if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+                alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
+              }
+              console.error(event.error);
+            };
+
+            recognition.start();
+          } else {
+            alert('Sorry, Speech Recognition is not supported on this device/browser.');
+          }
+        })
+        .catch(function(err) {
+          alert('Microphone access denied or not available. Please enable microphone access in your browser settings.');
+        });
+
+      this.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
