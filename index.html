@@ -35,24 +35,18 @@
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
     <a-marker preset="hiro" id="hiroMarker">
-      <!-- Words were added here before, now added to scene -->
+      <!-- Marker still required for AR.js, but words are placed in scene -->
     </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
-    // Fixes for iOS and Android compatibility
-    // - Start all audio and speech APIs only after a user gesture
-    // - Avoids using features that require special permissions not supported on mobile
-
     let recognition;
-    let marker = document.getElementById('hiroMarker');
     let addedWords = new Set();
 
     function getRandomPosition() {
-      // Spread words within a cube around the marker (all directions)
-      let x = (Math.random() - 0.5) * 4; // -2 to 2
-      let y = (Math.random() - 0.5) * 4; // -2 to 2
-      let z = (Math.random() - 0.5) * 4; // -2 to 2
+      let x = (Math.random() - 0.5) * 4;
+      let y = (Math.random() - 0.5) * 4;
+      let z = (Math.random() - 0.5) * 4;
       return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
     }
 
@@ -65,15 +59,13 @@
       entity.setAttribute('position', getRandomPosition());
       entity.setAttribute('rotation', '-90 0 0');
       entity.setAttribute('scale', '2 2 2');
-      // Add to the scene instead of the marker so words persist even if marker is lost
+      // Add to the scene instead of the marker for persistence
       document.querySelector('a-scene').appendChild(entity);
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
-      // Request microphone access up front to trigger iOS Safari permission dialog
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
-          // Use Web Speech API for speech recognition
           window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (window.SpeechRecognition) {
             recognition = new window.SpeechRecognition();
@@ -92,7 +84,6 @@
             };
 
             recognition.onerror = function(event) {
-              // Some Android devices require another user gesture if not allowed at first
               if (event.error === "not-allowed" || event.error === "service-not-allowed") {
                 alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
               }
