@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>AR Word Scatter (HIRO Marker, Mobile Ready)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <script src="aframe.min.js"></script>
+  <script src="aframe-ar.js"></script>
   <style>
     #startButton {
       position: fixed;
@@ -35,78 +35,79 @@
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
     <a-marker preset="hiro" id="hiroMarker">
-      <!-- Marker required for AR.js, but words are placed in scene -->
+      <!-- Words will be added here dynamically -->
     </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
   <script>
+    // Fixes for iOS and Android compatibility
+    // - Start all audio and speech APIs only after a user gesture
+    // - Avoids using features that require special permissions not supported on mobile
+
     let recognition;
+    let marker = document.getElementById('hiroMarker');
     let addedWords = new Set();
 
     function getRandomPosition() {
-      let x = (Math.random() - 0.5) * 4;
-      let y = (Math.random() - 0.5) * 4;
-      let z = (Math.random() - 0.5) * 4;
+      // Spread words within a reasonable area above the marker
+      let x = (Math.random() - 0.5) * 4; // -2 to 2
+      let y = 1.2 + Math.random() * 2;   // 1.2 to 3.2
+      let z = (Math.random() - 0.5) * 2; // -1 to 1
       return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
     }
 
     function addWord(word) {
       if (!word || addedWords.has(word.toLowerCase())) return;
       addedWords.add(word.toLowerCase());
+
       let entity = document.createElement('a-entity');
       entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
       entity.setAttribute('position', getRandomPosition());
       entity.setAttribute('rotation', '-90 0 0');
       entity.setAttribute('scale', '2 2 2');
-      document.querySelector('a-scene').appendChild(entity);
-      console.log("Word added:", word);
+      marker.appendChild(entity);
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
-      // Feature detection for SpeechRecognition
-      window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!window.SpeechRecognition) {
-        alert('Sorry, Speech Recognition is not supported on this device/browser.');
-        return;
-      }
-
+      // Request microphone access up front to trigger iOS Safari permission dialog
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
-          recognition = new window.SpeechRecognition();
-          recognition.continuous = true;
-          recognition.interimResults = false; // Only final results
+          // Use Web Speech API for speech recognition
+          window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (window.SpeechRecognition) {
+            recognition = new window.SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
 
-          recognition.lang = 'en-US';
-
-          recognition.onresult = function(event) {
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-              if (event.results[i].isFinal) {
-                let transcript = event.results[i][0].transcript.trim();
-                console.log("Transcript:", transcript);
-                // Split on whitespace and add each word
-                let words = transcript.split(/\s+/);
-                words.forEach(word => addWord(word));
+            recognition.onresult = function(event) {
+              let transcript = '';
+              for (let i = event.resultIndex; i < event.results.length; ++i) {
+                transcript += event.results[i][0].transcript;
               }
-            }
-          };
+              transcript = transcript.trim();
+              let words = transcript.split(/\s+/);
+              words.forEach(word => addWord(word));
+            };
 
-          recognition.onerror = function(event) {
-            alert('Speech recognition error: ' + event.error);
-            console.error("Speech recognition error:", event.error);
-          };
+            recognition.onerror = function(event) {
+              // Some Android devices require another user gesture if not allowed at first
+              if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+                alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
+              }
+              console.error(event.error);
+            };
 
-          recognition.onend = function() {
-            // Restart listening automatically
             recognition.start();
-          };
-
-          recognition.start();
-          document.getElementById('startButton').style.display = 'none';
+          } else {
+            alert('Sorry, Speech Recognition is not supported on this device/browser.');
+          }
         })
         .catch(function(err) {
           alert('Microphone access denied or not available. Please enable microphone access in your browser settings.');
-          console.error("Microphone access error:", err);
         });
+
+      this.style.display = 'none';
     });
   </script>
 </body>
