@@ -24,6 +24,17 @@
       box-shadow: 0 4px 24px rgba(0,0,0,0.18);
     }
     body { margin:0; overflow:hidden; }
+    /* Optionally, hide the video element after debugging */
+    #frontCameraVideo {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      width: 160px;
+      height: 120px;
+      z-index: 20;
+      background: #000;
+      /* display: none; */ /* Uncomment to hide after confirming it's working */
+    }
   </style>
 </head>
 <body>
@@ -35,33 +46,37 @@
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
     <a-marker preset="hiro" id="hiroMarker">
-      <!-- Plane showing the front camera feed -->
-      <a-plane 
-        position="0 2 -2" 
-        rotation="-20 0 0" 
-        width="1.8" 
-        height="1" 
-        material="src: #frontCameraVideo; side: double;">
+      <!-- === Plane showing the front camera feed === -->
+      <a-plane
+        id="frontCamPlane"
+        position="0 2 -2"
+        rotation="-20 0 0"
+        width="1.8"
+        height="1"
+        material="side: double; src: #frontCameraVideo;">
       </a-plane>
       <!-- Words will be added here dynamically -->
     </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
-  
-  <!-- Hidden video for front camera feed -->
-  <video id="frontCameraVideo" autoplay playsinline style="display:none;"></video>
-  
-  <script>
-    // Fixes for iOS and Android compatibility
-    // - Start all audio and speech APIs only after a user gesture
-    // - Avoids using features that require special permissions not supported on mobile
 
+  <!-- Hidden video for front camera feed (visible for debugging; set display:none when not needed) -->
+  <video
+    id="frontCameraVideo"
+    autoplay
+    playsinline
+    muted
+    crossorigin="anonymous"
+    style="background:#000;">
+  </video>
+
+  <script>
+    // Speech recognition and AR word logic (unchanged)
     let recognition;
     let marker = document.getElementById('hiroMarker');
     let addedWords = new Set();
 
     function getRandomPosition() {
-      // Spread words within a reasonable area above the marker
       let x = (Math.random() - 0.5) * 4; // -2 to 2
       let y = 1.2 + Math.random() * 2;   // 1.2 to 3.2
       let z = (Math.random() - 0.5) * 2; // -1 to 1
@@ -81,10 +96,8 @@
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
-      // Request microphone access up front to trigger iOS Safari permission dialog
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
-          // Use Web Speech API for speech recognition
           window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (window.SpeechRecognition) {
             recognition = new window.SpeechRecognition();
@@ -103,7 +116,6 @@
             };
 
             recognition.onerror = function(event) {
-              // Some Android devices require another user gesture if not allowed at first
               if (event.error === "not-allowed" || event.error === "service-not-allowed") {
                 alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
               }
@@ -122,17 +134,39 @@
       this.style.display = 'none';
     });
 
-    // Set up the front camera video stream for texture in AR plane
-    const frontVideo = document.getElementById('frontCameraVideo');
-    if (frontVideo) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
-        .then(function(stream) {
-          frontVideo.srcObject = stream;
-        })
-        .catch(function(err) {
-          console.error("Could not access front camera:", err);
-        });
+    // === Front camera video stream logic ===
+    // On user gesture, request the front camera and play into the video element.
+    // Some browsers block video autoplay without user interaction.
+    function startFrontCamera() {
+      const frontVideo = document.getElementById('frontCameraVideo');
+      if (frontVideo && !frontVideo.srcObject) {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+          .then(function(stream) {
+            frontVideo.srcObject = stream;
+            frontVideo.muted = true;
+            frontVideo.play();
+            // Refresh the plane's material when the video is ready
+            frontVideo.onloadeddata = function() {
+              const plane = document.querySelector('#frontCamPlane');
+              if (plane) {
+                plane.setAttribute('material', 'src', '#frontCameraVideo');
+              }
+            };
+          })
+          .catch(function(err) {
+            alert("Could not access front camera: " + err.message);
+            console.error("Could not access front camera:", err);
+          });
+      }
     }
+
+    // Ensure both AR and front camera start after user gesture
+    document.getElementById('startButton').addEventListener('click', function() {
+      startFrontCamera();
+    });
+
+    // Optionally, also start front camera with any touch for easier debugging
+    // window.addEventListener('touchstart', startFrontCamera, {once:true});
   </script>
 </body>
 </html>
