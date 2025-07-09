@@ -30,15 +30,27 @@
   <button id="startButton">Start Listening</button>
   <a-scene 
     embedded 
-    arjs="sourceType: webcam;" 
+    arjs="sourceType: webcam; facingMode: environment;" 
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
     <a-marker preset="hiro" id="hiroMarker">
+      <!-- Plane showing the front camera feed -->
+      <a-plane 
+        position="0 2 -2" 
+        rotation="-20 0 0" 
+        width="1.8" 
+        height="1" 
+        material="src: #frontCameraVideo; side: double;">
+      </a-plane>
       <!-- Words will be added here dynamically -->
     </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
+  
+  <!-- Hidden video for front camera feed -->
+  <video id="frontCameraVideo" autoplay playsinline style="display:none;"></video>
+  
   <script>
     // Fixes for iOS and Android compatibility
     // - Start all audio and speech APIs only after a user gesture
@@ -109,6 +121,18 @@
 
       this.style.display = 'none';
     });
+
+    // Set up the front camera video stream for texture in AR plane
+    const frontVideo = document.getElementById('frontCameraVideo');
+    if (frontVideo) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+        .then(function(stream) {
+          frontVideo.srcObject = stream;
+        })
+        .catch(function(err) {
+          console.error("Could not access front camera:", err);
+        });
+    }
   </script>
 </body>
 </html>
