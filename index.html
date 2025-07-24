@@ -4,8 +4,11 @@
   <meta charset="UTF-8">
   <title>AR Word Scatter (Markerless, Mobile Ready)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <script src="aframe.min.js"></script>
-  <script src="aframe-ar.js"></script>
+  <!-- Latest A-Frame and AR.js -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar-nft.js"></script>
+  <!-- Look-at component for facing camera -->
+  <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
   <style>
     #startButton {
       position: fixed;
@@ -29,56 +32,58 @@
 <body>
   <button id="startButton">Start Listening</button>
   <a-scene 
-    embedded 
-    arjs="sourceType: webcam;" 
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false;"
     vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true;"
-    device-orientation-permission-ui="enabled: false">
-    <!-- Place words relative to camera position -->
+    renderer="logarithmicDepthBuffer: true;">
     <a-entity id="wordContainer"></a-entity>
     <a-entity camera id="mainCam"></a-entity>
   </a-scene>
   <script>
     let recognition;
-    let wordContainer = document.getElementById('wordContainer');
-    let mainCam = document.getElementById('mainCam');
     let addedWords = new Set();
-
-    function getCameraWorldPosition() {
-      // Get the position of the camera in world coordinates
-      if (mainCam && mainCam.object3D) {
-        let pos = new THREE.Vector3();
-        mainCam.object3D.getWorldPosition(pos);
-        return pos;
-      }
-      return new THREE.Vector3(0, 1.6, 0); // default camera height
-    }
 
     function addWord(word) {
       if (!word || addedWords.has(word.toLowerCase())) return;
       addedWords.add(word.toLowerCase());
 
-      // Place word in front of the camera at random offset
-      let camPos = getCameraWorldPosition();
-      let direction = new THREE.Vector3(0, 0, -1);
-      if (mainCam && mainCam.object3D) {
-        mainCam.object3D.getWorldDirection(direction);
-      }
-      // Place 2-3 units in front, randomize left/right/up/down
-      let distance = 2 + Math.random();
-      let offset = direction.multiplyScalar(distance);
-      offset.x += (Math.random() - 0.5) * 1.5;
-      offset.y += (Math.random() - 0.5) * 1.5;
+      // Get camera entity
+      const cam = document.getElementById('mainCam');
+      if (!cam) { console.error('Camera not found'); return; }
 
-      let finalPos = camPos.clone().add(offset);
+      // Get camera world position
+      const cameraObj = cam.object3D;
+      const pos = new THREE.Vector3();
+      cameraObj.getWorldPosition(pos);
 
-      let entity = document.createElement('a-entity');
-      entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
+      // Get camera direction and compute position in front of camera
+      const dir = new THREE.Vector3();
+      cameraObj.getWorldDirection(dir);
+
+      // Place the word 2 meters in front of the camera, with a random offset
+      const distance = 2;
+      const offset = dir.multiplyScalar(distance);
+      offset.x += (Math.random() - 0.5); // randomize x
+      offset.y += (Math.random() - 0.5); // randomize y
+
+      const finalPos = pos.clone().add(offset);
+
+      // Create a text entity
+      const entity = document.createElement('a-entity');
+      entity.setAttribute('text', {
+        value: word,
+        color: '#FF3C3C',
+        align: 'center',
+        width: 3,
+        anchor: 'center'
+      });
       entity.setAttribute('position', `${finalPos.x} ${finalPos.y} ${finalPos.z}`);
-      // Make the text always face the camera
       entity.setAttribute('look-at', '[camera]');
       entity.setAttribute('scale', '2 2 2');
-      wordContainer.appendChild(entity);
+      document.getElementById('wordContainer').appendChild(entity);
+
+      // Debug: Log word and position
+      console.log(`Added word: ${word} at ${finalPos.x}, ${finalPos.y}, ${finalPos.z}`);
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
@@ -120,7 +125,5 @@
       this.style.display = 'none';
     });
   </script>
-  <!-- Add look-at component for text facing camera -->
-  <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 </body>
 </html>
