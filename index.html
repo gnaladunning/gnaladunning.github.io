@@ -2,13 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Word Scatter (Markerless, Mobile Ready)</title>
+  <title>Virtual virtual HIRO Marker AR Word Scatter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <!-- Latest A-Frame and AR.js -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar-nft.js"></script>
-  <!-- Look-at component for facing camera -->
-  <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
   <style>
     #startButton {
       position: fixed;
@@ -31,59 +27,45 @@
 </head>
 <body>
   <button id="startButton">Start Listening</button>
-  <a-scene 
-    embedded
-    arjs="sourceType: webcam; debugUIEnabled: false;"
-    vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true;">
+  <a-scene embedded vr-mode-ui="enabled: false">
+    <!-- Virtual HIRO marker image as a clickable plane -->
+    <a-entity id="virtualHiro" position="0 1.2 -3" geometry="primitive: plane; height: 1; width: 1"
+      material="shader: flat; src: url(https://raw.githubusercontent.com/AR-js-org/AR.js/master/three.js/examples/marker-training/examples/pattern-files/pattern-hiro.png)"
+      class="clickable"></a-entity>
     <a-entity id="wordContainer"></a-entity>
-    <a-entity camera id="mainCam"></a-entity>
+    <a-entity camera look-controls></a-entity>
   </a-scene>
   <script>
     let recognition;
     let addedWords = new Set();
+    let markerPlaced = false;
+    let markerPosition = {x:0, y:1.2, z:-3};
+
+    // When user taps/clicks the virtual marker, "activate" it for word placement
+    document.querySelector('#virtualHiro').addEventListener('click', function () {
+      markerPlaced = true;
+      alert('Virtual marker selected! Spoken words will appear around it.');
+    });
+
+    function getRandomPositionNearMarker() {
+      // Scatter words around the marker
+      let x = markerPosition.x + (Math.random() - 0.5) * 1.5;
+      let y = markerPosition.y + Math.random() * 1.2;
+      let z = markerPosition.z + (Math.random() - 0.5) * 1.5;
+      return `${x} ${y} ${z}`;
+    }
 
     function addWord(word) {
+      if (!markerPlaced) return; // Only add words after marker is "placed"
       if (!word || addedWords.has(word.toLowerCase())) return;
       addedWords.add(word.toLowerCase());
 
-      // Get camera entity
-      const cam = document.getElementById('mainCam');
-      if (!cam) { console.error('Camera not found'); return; }
-
-      // Get camera world position
-      const cameraObj = cam.object3D;
-      const pos = new THREE.Vector3();
-      cameraObj.getWorldPosition(pos);
-
-      // Get camera direction and compute position in front of camera
-      const dir = new THREE.Vector3();
-      cameraObj.getWorldDirection(dir);
-
-      // Place the word 2 meters in front of the camera, with a random offset
-      const distance = 2;
-      const offset = dir.multiplyScalar(distance);
-      offset.x += (Math.random() - 0.5); // randomize x
-      offset.y += (Math.random() - 0.5); // randomize y
-
-      const finalPos = pos.clone().add(offset);
-
-      // Create a text entity
-      const entity = document.createElement('a-entity');
-      entity.setAttribute('text', {
-        value: word,
-        color: '#FF3C3C',
-        align: 'center',
-        width: 3,
-        anchor: 'center'
-      });
-      entity.setAttribute('position', `${finalPos.x} ${finalPos.y} ${finalPos.z}`);
-      entity.setAttribute('look-at', '[camera]');
+      let entity = document.createElement('a-entity');
+      entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
+      entity.setAttribute('position', getRandomPositionNearMarker());
+      entity.setAttribute('rotation', '-90 0 0');
       entity.setAttribute('scale', '2 2 2');
       document.getElementById('wordContainer').appendChild(entity);
-
-      // Debug: Log word and position
-      console.log(`Added word: ${word} at ${finalPos.x}, ${finalPos.y}, ${finalPos.z}`);
     }
 
     document.getElementById('startButton').addEventListener('click', function() {
