@@ -34,32 +34,49 @@
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: false">
-    <!-- No marker, just a world anchor -->
+    <!-- Place words relative to camera position -->
     <a-entity id="wordContainer"></a-entity>
-    <a-entity camera></a-entity>
+    <a-entity camera id="mainCam"></a-entity>
   </a-scene>
   <script>
-    // Markerless version: add words relative to the world origin
     let recognition;
     let wordContainer = document.getElementById('wordContainer');
+    let mainCam = document.getElementById('mainCam');
     let addedWords = new Set();
 
-    function getRandomPosition() {
-      // Spread words within a reasonable area in front of the camera
-      let x = (Math.random() - 0.5) * 4; // -2 to 2
-      let y = 1.2 + Math.random() * 2;   // 1.2 to 3.2
-      let z = -2 - Math.random() * 2;    // -2 to -4 (in front of camera)
-      return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
+    function getCameraWorldPosition() {
+      // Get the position of the camera in world coordinates
+      if (mainCam && mainCam.object3D) {
+        let pos = new THREE.Vector3();
+        mainCam.object3D.getWorldPosition(pos);
+        return pos;
+      }
+      return new THREE.Vector3(0, 1.6, 0); // default camera height
     }
 
     function addWord(word) {
       if (!word || addedWords.has(word.toLowerCase())) return;
       addedWords.add(word.toLowerCase());
 
+      // Place word in front of the camera at random offset
+      let camPos = getCameraWorldPosition();
+      let direction = new THREE.Vector3(0, 0, -1);
+      if (mainCam && mainCam.object3D) {
+        mainCam.object3D.getWorldDirection(direction);
+      }
+      // Place 2-3 units in front, randomize left/right/up/down
+      let distance = 2 + Math.random();
+      let offset = direction.multiplyScalar(distance);
+      offset.x += (Math.random() - 0.5) * 1.5;
+      offset.y += (Math.random() - 0.5) * 1.5;
+
+      let finalPos = camPos.clone().add(offset);
+
       let entity = document.createElement('a-entity');
       entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
-      entity.setAttribute('position', getRandomPosition());
-      entity.setAttribute('rotation', '-90 0 0');
+      entity.setAttribute('position', `${finalPos.x} ${finalPos.y} ${finalPos.z}`);
+      // Make the text always face the camera
+      entity.setAttribute('look-at', '[camera]');
       entity.setAttribute('scale', '2 2 2');
       wordContainer.appendChild(entity);
     }
@@ -103,5 +120,7 @@
       this.style.display = 'none';
     });
   </script>
+  <!-- Add look-at component for text facing camera -->
+  <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 </body>
 </html>
