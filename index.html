@@ -15,7 +15,55 @@
       transform: translate(-50%, -50%);
       z-index: 10;
       padding: 1em 2em;
+      background: #ff3c3c;<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Virtual HIRO Marker in AR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <!-- A-Frame and AR.js -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+  <style>
+    #startButton {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      padding: 1em 2em;
       background: #ff3c3c;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.5em;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      display: none;
+    }
+    body { margin:0; overflow:hidden; }
+  </style>
+</head>
+<body>
+  <a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false;"
+    vr-mode-ui="enabled: false"
+    renderer="logarithmicDepthBuffer: true;"
+    device-orientation-permission-ui="enabled: false">
+    <!-- Virtual HIRO marker image as a plane 1 meter in front of the camera -->
+    <a-entity
+      id="virtualHiro"
+      geometry="primitive: plane; height: 1; width: 1"
+      material="shader: flat; src: url(https://raw.githubusercontent.com/AR-js-org/AR.js/master/three.js/examples/marker-training/examples/pattern-files/pattern-hiro.png)"
+      position="0 1.2 -1"
+      rotation="-90 0 0">
+    </a-entity>
+    <a-entity camera></a-entity>
+  </a-scene>
+</body>
+</html>
       color: #fff;
       border: none;
       border-radius: 8px;
