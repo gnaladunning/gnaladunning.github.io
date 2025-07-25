@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Virtual virtual HIRO Marker AR Word Scatter</title>
+  <title>Virtual HIRO Marker AR Word Scatter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <!-- A-Frame and AR.js -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
   <style>
     #startButton {
       position: fixed;
@@ -27,31 +29,43 @@
 </head>
 <body>
   <button id="startButton">Start Listening</button>
-  <a-scene embedded vr-mode-ui="enabled: false">
-    <!-- Virtual HIRO marker image as a clickable plane -->
-    <a-entity id="virtualHiro" position="0 1.2 -3" geometry="primitive: plane; height: 1; width: 1"
+  <a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false;"
+    vr-mode-ui="enabled: false"
+    renderer="logarithmicDepthBuffer: true;"
+    device-orientation-permission-ui="enabled: false">
+    <!-- Virtual HIRO marker image as a clickable plane in AR space -->
+    <a-entity
+      id="virtualHiro"
+      geometry="primitive: plane; height: 1; width: 1"
       material="shader: flat; src: url(https://raw.githubusercontent.com/AR-js-org/AR.js/master/three.js/examples/marker-training/examples/pattern-files/pattern-hiro.png)"
-      class="clickable"></a-entity>
+      position="0 1.2 -2"
+      class="clickable"
+      cursor="rayOrigin: mouse"
+      event-set__enter="_event: mouseenter; scale: 1.1 1.1 1"
+      event-set__leave="_event: mouseleave; scale: 1 1 1"
+    ></a-entity>
     <a-entity id="wordContainer"></a-entity>
-    <a-entity camera look-controls></a-entity>
+    <a-entity camera></a-entity>
   </a-scene>
   <script>
     let recognition;
     let addedWords = new Set();
     let markerPlaced = false;
-    let markerPosition = {x:0, y:1.2, z:-3};
+    const markerPosition = {x: 0, y: 1.2, z: -2};
 
-    // When user taps/clicks the virtual marker, "activate" it for word placement
+    // Allow user to click/tap the virtual marker to "activate" it
     document.querySelector('#virtualHiro').addEventListener('click', function () {
       markerPlaced = true;
-      alert('Virtual marker selected! Spoken words will appear around it.');
+      alert('Virtual HIRO marker selected! Spoken words will appear around it.');
     });
 
     function getRandomPositionNearMarker() {
       // Scatter words around the marker
-      let x = markerPosition.x + (Math.random() - 0.5) * 1.5;
-      let y = markerPosition.y + Math.random() * 1.2;
-      let z = markerPosition.z + (Math.random() - 0.5) * 1.5;
+      let x = markerPosition.x + (Math.random() - 0.5) * 1.2;
+      let y = markerPosition.y + Math.random() * 1.0;
+      let z = markerPosition.z + (Math.random() - 0.5) * 1.2;
       return `${x} ${y} ${z}`;
     }
 
