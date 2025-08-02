@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Red Objects Only (iOS Compatible)</title>
+  <title>Markerless AR - Wide Range Red Objects Only (iOS Compatible)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -37,7 +37,7 @@
     <a-box position="0 1 -3" color="#FF3C3C"></a-box>
   </a-scene>
   <script>
-    // RED OBJECT DETECTION OVERLAY
+    // WIDE RANGE RED OBJECT DETECTION OVERLAY
     const redCanvas = document.getElementById('redCanvas');
     let videoStream, video, ctx;
 
@@ -63,6 +63,19 @@
         });
     }
 
+    function isWideRangeRed(r, g, b) {
+      // Allow reds from dark (burgundy), bright, orange-red, pinkish, etc.
+      // Red should be at least 70, and greater than green and blue by 30, but allow some orange/pink
+      if (r > 70 && (
+        (r > g + 30 && r > b + 30) ||      // Strong/dominant red
+        (r > 120 && g > 30 && g < r && b < 100) || // Orange reds
+        (r > 120 && b > 30 && b < r && g < 100)    // Pink reds
+      )) {
+        return true;
+      }
+      return false;
+    }
+
     function drawRedFilteredFrame() {
       if (video.paused || video.ended) return;
       ctx.drawImage(video, 0, 0, redCanvas.width, redCanvas.height);
@@ -70,10 +83,7 @@
       let data = frame.data;
       for (let i = 0; i < data.length; i += 4) {
         let r = data[i], g = data[i+1], b = data[i+2];
-        // Keep only dominant red pixels, others set to black
-        if (r > 100 && r > g + 40 && r > b + 40) {
-          // keep pixel
-        } else {
+        if (!isWideRangeRed(r, g, b)) {
           data[i] = data[i+1] = data[i+2] = 0;
         }
       }
