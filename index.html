@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Red Shape Detection (iOS Compatible)</title>
+  <title>Markerless AR - Advanced Red Shape Detection (iOS Compatible)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <style>
@@ -50,7 +50,7 @@
             redCanvas.width = video.videoWidth;
             redCanvas.height = video.videoHeight;
             ctx = redCanvas.getContext('2d');
-            drawRedShapes();
+            drawAdvancedRedShapes();
           });
         })
         .catch(() => {
@@ -59,7 +59,6 @@
     }
 
     function isWideRangeRed(r, g, b) {
-      // Allow reds from dark (burgundy), bright, orange-red, pinkish, etc.
       if (r > 70 && (
         (r > g + 30 && r > b + 30) ||
         (r > 120 && g > 30 && g < r && b < 100) ||
@@ -70,62 +69,52 @@
       return false;
     }
 
-    // Parameters for shape detection
-    const cellSize = 20; // Size of grid cell in pixels
-    const redThreshold = 0.2; // Fraction of cell pixels that must be red to draw a shape
+    // Flood fill for clustering red regions
+    function clusterRedPixels(data, width, height) {
+      const visited = new Uint8Array(width * height);
+      const clusters = [];
+      const pixelIndex = (x, y) => (y * width + x) * 4;
 
-    function drawRedShapes() {
-      if (video.paused || video.ended) return;
-      ctx.drawImage(video, 0, 0, redCanvas.width, redCanvas.height);
-      let frame = ctx.getImageData(0, 0, redCanvas.width, redCanvas.height);
-      let data = frame.data;
-
-      // Clear canvas first (for hard edges)
-      ctx.clearRect(0, 0, redCanvas.width, redCanvas.height);
-
-      // Grid scan
-      for (let y = 0; y < redCanvas.height; y += cellSize) {
-        for (let x = 0; x < redCanvas.width; x += cellSize) {
-          let redCount = 0;
-          let totalCount = 0;
-
-          // Scan pixels in this cell
-          for (let cy = 0; cy < cellSize; cy++) {
-            for (let cx = 0; cx < cellSize; cx++) {
-              let px = x + cx;
-              let py = y + cy;
-              if (px >= redCanvas.width || py >= redCanvas.height) continue;
-              let i = (py * redCanvas.width + px) * 4;
-              let r = data[i], g = data[i+1], b = data[i+2];
-              if (isWideRangeRed(r, g, b)) redCount++;
-              totalCount++;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          if (visited[idx]) continue;
+          const i = pixelIndex(x, y);
+          if (isWideRangeRed(data[i], data[i + 1], data[i + 2])) {
+            // Start a new cluster
+            const queue = [[x, y]];
+            const cluster = [];
+            visited[idx] = 1;
+            while (queue.length) {
+              const [cx, cy] = queue.pop();
+              cluster.push([cx, cy]);
+              // Check neighbors
+              for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                  const nx = cx + dx, ny = cy + dy;
+                  if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                  const nidx = ny * width + nx;
+                  if (!visited[nidx]) {
+                    const ni = pixelIndex(nx, ny);
+                    if (isWideRangeRed(data[ni], data[ni + 1], data[ni + 2])) {
+                      queue.push([nx, ny]);
+                      visited[nidx] = 1;
+                    }
+                  }
+                }
+              }
             }
-          }
-
-          // If enough red pixels, draw a hard-edge shape
-          if (redCount / totalCount > redThreshold) {
-            // Draw pure red rectangle (hard edge)
-            ctx.fillStyle = "#FF0000";
-            ctx.fillRect(x, y, cellSize, cellSize);
-
-            // Alternatively, to draw circles:
-            // ctx.beginPath();
-            // ctx.arc(x + cellSize/2, y + cellSize/2, cellSize/2, 0, 2*Math.PI);
-            // ctx.fill();
+            if (cluster.length > 60) { // Only consider larger clusters
+              clusters.push(cluster);
+            }
           }
         }
       }
-      requestAnimationFrame(drawRedShapes);
+      return clusters;
     }
 
-    window.addEventListener('resize', () => {
-      redCanvas.width = window.innerWidth;
-      redCanvas.height = window.innerHeight;
-    });
-
-    document.addEventListener('DOMContentLoaded', () => {
-      startRedFilter();
-    });
-  </script>
-</body>
-</html>
+    // Fit and draw a geometric shape on a cluster
+    function drawClusterShape(ctx, cluster) {
+      // Find bounding box
+      let minX = Infinity, minY = Infinity*
+
