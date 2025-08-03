@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Wide Green Detection with Red Circles and Lines</title>
+  <title>Markerless AR - Wide Green Detection, All Centers Connected</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -94,7 +94,7 @@
       return [sumX / cluster.length, sumY / cluster.length];
     }
 
-    // Draw circles at cluster centers, connect centers with lines
+    // Draw circles at cluster centers, connect all centers with lines
     function drawGreenOverlays(ctx, clusters) {
       const centers = clusters.map(getClusterCenter);
 
@@ -103,14 +103,16 @@
       ctx.fillStyle = "#FF0000";
       ctx.globalAlpha = 0.85;
 
-      // Draw lines between centers
+      // Draw lines between ALL pairs of centers
       if (centers.length >= 2) {
         ctx.beginPath();
-        for (let i = 0; i < centers.length - 1; i++) {
+        for (let i = 0; i < centers.length; i++) {
           const [x1, y1] = centers[i];
-          const [x2, y2] = centers[i + 1];
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
+          for (let j = i + 1; j < centers.length; j++) {
+            const [x2, y2] = centers[j];
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+          }
         }
         ctx.stroke();
       }
@@ -142,7 +144,7 @@
         // Cluster green pixels
         const clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
 
-        // Overlay red circles and lines connecting their centers
+        // Overlay red circles and lines connecting all centers
         drawGreenOverlays(ctx, clusters);
       }
       requestAnimationFrame(draw);
