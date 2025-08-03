@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Strict Red Shape Detection</title>
+  <title>Markerless AR - Green Detection with Red Circles and Lines</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
-    #redCanvas {
+    #greenCanvas {
       position: fixed;
       top: 0;
       left: 0;
@@ -23,29 +23,27 @@
   </style>
 </head>
 <body>
-  <!-- Hidden video element for camera feed -->
   <video id="videoElement" autoplay playsinline muted></video>
-  <!-- Canvas for displaying camera + overlays -->
-  <canvas id="redCanvas"></canvas>
+  <canvas id="greenCanvas"></canvas>
   <script>
-    const redCanvas = document.getElementById('redCanvas');
+    const greenCanvas = document.getElementById('greenCanvas');
     const video = document.getElementById('videoElement');
-    let ctx = redCanvas.getContext('2d');
+    let ctx = greenCanvas.getContext('2d');
 
-    // Strict red detection: excludes orange/yellow
-    function isStrictRed(r, g, b) {
-      // Accept only dominant reds, with low green and blue
-      // r must be high; g and b must be low
-      // Thresholds can be adjusted
+    // Green detection function
+    function isStrictGreen(r, g, b) {
+      // Only dominant greens, exclude yellowish or bluish
+      // Adjust thresholds for sensitivity
       return (
-        r > 120 &&    // Red must be bright
-        g < 80 &&     // Green must be low
+        g > 120 &&    // Green must be bright
+        r < 80 &&     // Red must be low
         b < 80 &&     // Blue must be low
-        r > g * 1.5 && r > b * 1.5 // Red is much higher than green/blue
+        g > r * 1.5 && g > b * 1.5 // Green much higher than red/blue
       );
     }
 
-    function clusterRedPixels(data, width, height) {
+    // Cluster green pixels into regions using flood fill
+    function clusterGreenPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
       const pixelIndex = (x, y) => (y * width + x) * 4;
@@ -55,7 +53,7 @@
           const idx = y * width + x;
           if (visited[idx]) continue;
           const i = pixelIndex(x, y);
-          if (isStrictRed(data[i], data[i + 1], data[i + 2])) {
+          if (isStrictGreen(data[i], data[i + 1], data[i + 2])) {
             const queue = [[x, y]];
             const cluster = [];
             visited[idx] = 1;
@@ -69,7 +67,7 @@
                   const nidx = ny * width + nx;
                   if (!visited[nidx]) {
                     const ni = pixelIndex(nx, ny);
-                    if (isStrictRed(data[ni], data[ni + 1], data[ni + 2])) {
+                    if (isStrictGreen(data[ni], data[ni + 1], data[ni + 2])) {
                       queue.push([nx, ny]);
                       visited[nidx] = 1;
                     }
@@ -77,8 +75,7 @@
                 }
               }
             }
-            // Only consider larger clusters
-            if (cluster.length > 60) {
+            if (cluster.length > 60) { // Only consider larger clusters
               clusters.push(cluster);
             }
           }
@@ -87,67 +84,66 @@
       return clusters;
     }
 
-    function drawClusterShape(ctx, cluster) {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    // Get the center of a cluster
+    function getClusterCenter(cluster) {
+      let sumX = 0, sumY = 0;
       for (const [x, y] of cluster) {
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
+        sumX += x;
+        sumY += y;
       }
-      const width = maxX - minX;
-      const height = maxY - minY;
-      const area = width * height;
-      const centerX = minX + width / 2;
-      const centerY = minY + height / 2;
+      return [sumX / cluster.length, sumY / cluster.length];
+    }
+
+    // Draw circles at cluster centers, connect centers with lines
+    function drawGreenOverlays(ctx, clusters) {
+      const centers = clusters.map(getClusterCenter);
 
       ctx.save();
       ctx.strokeStyle = "#FF0000";
       ctx.fillStyle = "#FF0000";
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.85;
 
-      if (area < 3000) {
-        // Small cluster: Circle
-        const radius = Math.sqrt(cluster.length / Math.PI);
+      // Draw lines between centers
+      if (centers.length >= 2) {
         ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-        ctx.fill();
-      } else if (width / height > 1.3 || height / width > 1.3) {
-        // Elongated: Rectangle
-        ctx.fillRect(minX, minY, width, height);
-      } else {
-        // Square-ish: Triangle
+        for (let i = 0; i < centers.length - 1; i++) {
+          const [x1, y1] = centers[i];
+          const [x2, y2] = centers[i + 1];
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        ctx.stroke();
+      }
+
+      // Draw circles at each center
+      for (const [x, y] of centers) {
         ctx.beginPath();
-        ctx.moveTo(minX, maxY);
-        ctx.lineTo(centerX, minY);
-        ctx.lineTo(maxX, maxY);
-        ctx.closePath();
+        ctx.arc(x, y, 20, 0, 2 * Math.PI); // Fixed radius, adjust if needed
         ctx.fill();
       }
+
       ctx.restore();
     }
 
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         // Resize canvas if needed
-        if (redCanvas.width !== video.videoWidth || redCanvas.height !== video.videoHeight) {
-          redCanvas.width = video.videoWidth;
-          redCanvas.height = video.videoHeight;
+        if (greenCanvas.width !== video.videoWidth || greenCanvas.height !== video.videoHeight) {
+          greenCanvas.width = video.videoWidth;
+          greenCanvas.height = video.videoHeight;
         }
         // Draw camera feed
-        ctx.drawImage(video, 0, 0, redCanvas.width, redCanvas.height);
+        ctx.drawImage(video, 0, 0, greenCanvas.width, greenCanvas.height);
 
         // Get pixel data
-        let frame = ctx.getImageData(0, 0, redCanvas.width, redCanvas.height);
+        let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
         let data = frame.data;
 
-        // Cluster red pixels
-        const clusters = clusterRedPixels(data, redCanvas.width, redCanvas.height);
+        // Cluster green pixels
+        const clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
 
-        // Overlay shapes
-        for (const cluster of clusters) {
-          drawClusterShape(ctx, cluster);
-        }
+        // Overlay red circles and lines connecting their centers
+        drawGreenOverlays(ctx, clusters);
       }
       requestAnimationFrame(draw);
     }
@@ -158,8 +154,8 @@
         video.srcObject = stream;
         video.play();
         video.addEventListener('loadedmetadata', () => {
-          redCanvas.width = video.videoWidth;
-          redCanvas.height = video.videoHeight;
+          greenCanvas.width = video.videoWidth;
+          greenCanvas.height = video.videoHeight;
           draw();
         });
       })
@@ -170,8 +166,8 @@
     // Responsive resizing (optional)
     window.addEventListener('resize', () => {
       if (video.videoWidth && video.videoHeight) {
-        redCanvas.width = video.videoWidth;
-        redCanvas.height = video.videoHeight;
+        greenCanvas.width = video.videoWidth;
+        greenCanvas.height = video.videoHeight;
       }
     });
   </script>
