@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Advanced Red Shape Detection</title>
+  <title>Markerless AR - Strict Red Shape Detection</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -32,19 +32,19 @@
     const video = document.getElementById('videoElement');
     let ctx = redCanvas.getContext('2d');
 
-    // Red detection function
-    function isWideRangeRed(r, g, b) {
-      if (r > 70 && (
-        (r > g + 30 && r > b + 30) ||
-        (r > 120 && g > 30 && g < r && b < 100) ||
-        (r > 120 && b > 30 && b < r && g < 100)
-      )) {
-        return true;
-      }
-      return false;
+    // Strict red detection: excludes orange/yellow
+    function isStrictRed(r, g, b) {
+      // Accept only dominant reds, with low green and blue
+      // r must be high; g and b must be low
+      // Thresholds can be adjusted
+      return (
+        r > 120 &&    // Red must be bright
+        g < 80 &&     // Green must be low
+        b < 80 &&     // Blue must be low
+        r > g * 1.5 && r > b * 1.5 // Red is much higher than green/blue
+      );
     }
 
-    // Flood fill for clustering
     function clusterRedPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
@@ -55,7 +55,7 @@
           const idx = y * width + x;
           if (visited[idx]) continue;
           const i = pixelIndex(x, y);
-          if (isWideRangeRed(data[i], data[i + 1], data[i + 2])) {
+          if (isStrictRed(data[i], data[i + 1], data[i + 2])) {
             const queue = [[x, y]];
             const cluster = [];
             visited[idx] = 1;
@@ -69,7 +69,7 @@
                   const nidx = ny * width + nx;
                   if (!visited[nidx]) {
                     const ni = pixelIndex(nx, ny);
-                    if (isWideRangeRed(data[ni], data[ni + 1], data[ni + 2])) {
+                    if (isStrictRed(data[ni], data[ni + 1], data[ni + 2])) {
                       queue.push([nx, ny]);
                       visited[nidx] = 1;
                     }
@@ -87,7 +87,6 @@
       return clusters;
     }
 
-    // Shape overlay
     function drawClusterShape(ctx, cluster) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const [x, y] of cluster) {
