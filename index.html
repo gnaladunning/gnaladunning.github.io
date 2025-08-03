@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Advanced Red Shape Detection (iOS Compatible)</title>
+  <title>Markerless AR - Advanced Red Shape Detection</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <style>
     body { margin:0; overflow:hidden; }
     #redCanvas {
@@ -15,49 +14,25 @@
       height: 100vh;
       z-index: 1;
       pointer-events: none;
-      object-fit: cover;
       background: #000;
+      object-fit: cover;
     }
-    a-scene { z-index: 2; }
+    #videoElement {
+      display: none;
+    }
   </style>
 </head>
 <body>
+  <!-- Hidden video element for camera feed -->
+  <video id="videoElement" autoplay playsinline muted></video>
+  <!-- Canvas for displaying camera + overlays -->
   <canvas id="redCanvas"></canvas>
-  <a-scene
-    embedded
-    vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true;"
-    device-orientation-permission-ui="enabled: false"
-    playsinline>
-    <a-entity camera></a-entity>
-    <a-box position="0 1 -3" color="#FF3C3C"></a-box>
-  </a-scene>
   <script>
     const redCanvas = document.getElementById('redCanvas');
-    let videoStream, video, ctx;
+    const video = document.getElementById('videoElement');
+    let ctx = redCanvas.getContext('2d');
 
-    function startRedFilter() {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-        .then(stream => {
-          videoStream = stream;
-          video = document.createElement('video');
-          video.srcObject = stream;
-          video.setAttribute('playsinline', 'true');
-          video.muted = true;
-          video.play();
-
-          video.addEventListener('loadedmetadata', () => {
-            redCanvas.width = video.videoWidth;
-            redCanvas.height = video.videoHeight;
-            ctx = redCanvas.getContext('2d');
-            drawAdvancedRedShapes();
-          });
-        })
-        .catch(() => {
-          alert('Camera access denied or unavailable.');
-        });
-    }
-
+    // Red detection function
     function isWideRangeRed(r, g, b) {
       if (r > 70 && (
         (r > g + 30 && r > b + 30) ||
@@ -69,7 +44,7 @@
       return false;
     }
 
-    // Flood fill for clustering red regions
+    // Flood fill for clustering
     function clusterRedPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
@@ -81,14 +56,12 @@
           if (visited[idx]) continue;
           const i = pixelIndex(x, y);
           if (isWideRangeRed(data[i], data[i + 1], data[i + 2])) {
-            // Start a new cluster
             const queue = [[x, y]];
             const cluster = [];
             visited[idx] = 1;
             while (queue.length) {
               const [cx, cy] = queue.pop();
               cluster.push([cx, cy]);
-              // Check neighbors
               for (let dx = -1; dx <= 1; dx++) {
                 for (let dy = -1; dy <= 1; dy++) {
                   const nx = cx + dx, ny = cy + dy;
@@ -104,7 +77,8 @@
                 }
               }
             }
-            if (cluster.length > 60) { // Only consider larger clusters
+            // Only consider larger clusters
+            if (cluster.length > 60) {
               clusters.push(cluster);
             }
           }
@@ -113,8 +87,94 @@
       return clusters;
     }
 
-    // Fit and draw a geometric shape on a cluster
+    // Shape overlay
     function drawClusterShape(ctx, cluster) {
-      // Find bounding box
-      let minX = Infinity, minY = Infinity*
-
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of cluster) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+      const width = maxX - minX;
+      const height = maxY - minY;
+      const area = width * height;
+      const centerX = minX + width / 2;
+      const centerY = minY + height / 2;
+
+      ctx.save();
+      ctx.strokeStyle = "#FF0000";
+      ctx.fillStyle = "#FF0000";
+      ctx.globalAlpha = 0.8;
+
+      if (area < 3000) {
+        // Small cluster: Circle
+        const radius = Math.sqrt(cluster.length / Math.PI);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.fill();
+      } else if (width / height > 1.3 || height / width > 1.3) {
+        // Elongated: Rectangle
+        ctx.fillRect(minX, minY, width, height);
+      } else {
+        // Square-ish: Triangle
+        ctx.beginPath();
+        ctx.moveTo(minX, maxY);
+        ctx.lineTo(centerX, minY);
+        ctx.lineTo(maxX, maxY);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function draw() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Resize canvas if needed
+        if (redCanvas.width !== video.videoWidth || redCanvas.height !== video.videoHeight) {
+          redCanvas.width = video.videoWidth;
+          redCanvas.height = video.videoHeight;
+        }
+        // Draw camera feed
+        ctx.drawImage(video, 0, 0, redCanvas.width, redCanvas.height);
+
+        // Get pixel data
+        let frame = ctx.getImageData(0, 0, redCanvas.width, redCanvas.height);
+        let data = frame.data;
+
+        // Cluster red pixels
+        const clusters = clusterRedPixels(data, redCanvas.width, redCanvas.height);
+
+        // Overlay shapes
+        for (const cluster of clusters) {
+          drawClusterShape(ctx, cluster);
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    // Camera setup
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        video.addEventListener('loadedmetadata', () => {
+          redCanvas.width = video.videoWidth;
+          redCanvas.height = video.videoHeight;
+          draw();
+        });
+      })
+      .catch(() => {
+        alert('Camera access denied or unavailable.');
+      });
+
+    // Responsive resizing (optional)
+    window.addEventListener('resize', () => {
+      if (video.videoWidth && video.videoHeight) {
+        redCanvas.width = video.videoWidth;
+        redCanvas.height = video.videoHeight;
+      }
+    });
+  </script>
+</body>
+</html>
