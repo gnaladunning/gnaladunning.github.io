@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Wide Green Detection, All Centers Connected</title>
+  <title>Markerless AR - Max 20 Points Green Detection</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -32,13 +32,10 @@
 
     // Wide green detection: includes yellowish and bluish greens
     function isWideRangeGreen(r, g, b) {
-      // Green must be higher than red and blue, but allow some yellowish (g > r, g > b, but r and b may be close)
-      // Acceptable green: green is dominant, but red or blue can be nonzero
-      // This allows "spring green", "lime", "chartreuse", "aqua", "teal", etc.
       return (
-        g > 80 && // green must be sufficiently bright
-        g > r + 20 && g > b + 20 && // green must be dominant
-        (r < 180 && b < 180) // don't allow nearly white areas
+        g > 80 &&
+        g > r + 20 && g > b + 20 &&
+        (r < 180 && b < 180)
       );
     }
 
@@ -77,6 +74,7 @@
             }
             if (cluster.length > 60) { // Only consider larger clusters
               clusters.push(cluster);
+              if (clusters.length >= 20) return clusters; // Limit to 20 clusters
             }
           }
         }
@@ -141,7 +139,7 @@
         let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
         let data = frame.data;
 
-        // Cluster green pixels
+        // Cluster green pixels (limit to 20 clusters)
         const clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
 
         // Overlay red circles and lines connecting all centers
