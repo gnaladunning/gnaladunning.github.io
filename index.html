@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Non-Overlapping Words</title>
+  <title>Markerless AR - Fade Words Every Second</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -28,9 +28,9 @@
   <script>
     const greenCanvas = document.getElementById('greenCanvas');
     const video = document.getElementById('videoElement');
-    let ctx = greenCanvas.getContext('2d');
+    const ctx = greenCanvas.getContext('2d');
 
-    // Example dictionary (expand as needed)
+    // Example dictionary
     const dictionary = [
       "ability","about","accept","account","action","activity","address","admit","adult","affect",
       "after","again","agency","agent","agree","agreement","ahead","air","allow","alone","already",
@@ -115,9 +115,20 @@
       "yeah","year","yes","yet","you","young","your","yourself"
     ];
 
-    let clusterWords = [];
     let clusters = [];
+    let clusterWords = [];
+    let clusterNextWords = [];
+    let clusterFadeProgress = []; // 0 to 1, fade state
+    let clusterLastUpdate = []; // timestamp of last word change
 
+    // Fade duration in ms
+    const FADE_DURATION = 500;
+    // Time between word refreshes in ms
+    const REFRESH_INTERVAL = 1000;
+    // Limit to max 10 clusters
+    const MAX_CLUSTERS = 10;
+
+    // Utility functions
     function isWideRangeGreen(r, g, b) {
       return (
         g > 80 &&
@@ -160,7 +171,7 @@
             }
             if (cluster.length > 60) {
               clusters.push(cluster);
-              if (clusters.length >= 10) return clusters; // Limit to 10 clusters
+              if (clusters.length >= MAX_CLUSTERS) return clusters;
             }
           }
         }
@@ -177,34 +188,64 @@
       return [sumX / cluster.length, sumY / cluster.length];
     }
 
+    function pickWord() {
+      return dictionary[Math.floor(Math.random() * dictionary.length)];
+    }
+
+    // Assign persistent words and fade state to cluster centers
     function assignWordsToCenters(centers) {
-      // Reassign words if the number of centers changes
+      // If number of clusters changed, reinitialize arrays
       if (clusterWords.length !== centers.length) {
         clusterWords = [];
+        clusterNextWords = [];
+        clusterFadeProgress = [];
+        clusterLastUpdate = [];
         for (let i = 0; i < centers.length; i++) {
-          clusterWords.push(dictionary[Math.floor(Math.random() * dictionary.length)]);
+          clusterWords.push(pickWord());
+          clusterNextWords.push(pickWord());
+          clusterFadeProgress.push(1); // Start at fully visible
+          clusterLastUpdate.push(Date.now());
         }
       }
     }
 
-    // Helper to check if two rectangles overlap
-    function rectsOverlap(a, b) {
-      return !(b.left > a.right ||
-               b.right < a.left ||
-               b.top > a.bottom ||
-               b.bottom < a.top);
+    // Fade logic
+    function refreshWords(centers) {
+      const now = Date.now();
+      for (let i = 0; i < centers.length; i++) {
+        if (now - clusterLastUpdate[i] >= REFRESH_INTERVAL) {
+          clusterNextWords[i] = pickWord();
+          clusterFadeProgress[i] = 0;
+          clusterLastUpdate[i] = now;
+        }
+      }
     }
 
-    // Place words so they don't overlap
+    function updateFade() {
+      for (let i = 0; i < clusterFadeProgress.length; i++) {
+        if (clusterFadeProgress[i] < 1) {
+          clusterFadeProgress[i] += 1 / (FADE_DURATION / (1000 / 60));
+          if (clusterFadeProgress[i] >= 1) {
+            clusterFadeProgress[i] = 1;
+            clusterWords[i] = clusterNextWords[i];
+          }
+        }
+      }
+    }
+
     function drawGreenOverlays(ctx, clusters) {
       const centers = clusters.map(getClusterCenter);
+
       assignWordsToCenters(centers);
+
+      refreshWords(centers);
+      updateFade();
 
       ctx.save();
       ctx.strokeStyle = "#FF0000";
       ctx.globalAlpha = 0.85;
 
-      // Draw lines between all centers
+      // Draw lines between centers
       if (centers.length >= 2) {
         ctx.beginPath();
         for (let i = 0; i < centers.length; i++) {
@@ -218,71 +259,29 @@
         ctx.stroke();
       }
 
-      // Store drawn word rectangles for overlap checking
-      const wordRects = [];
-
+      // Draw words with fade
       for (let i = 0; i < centers.length; i++) {
-        let [x, y] = centers[i];
-        const word = clusterWords[i];
-
+        const [x, y] = centers[i];
+        const fade = clusterFadeProgress[i];
         ctx.save();
         ctx.font = "bold 32px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        // Measure text
-        const metrics = ctx.measureText(word);
-        // metrics.width, metrics.actualBoundingBoxAscent/Descent may be undefined in some browsers
-        const width = metrics.width;
-        // Fallback for height: use fixed value if not available
-        const height = (metrics.actualBoundingBoxAscent && metrics.actualBoundingBoxDescent) ?
-          metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : 32;
 
-        // Try to place without overlapping previous words
-        let attempts = 0;
-        const maxAttempts = 30;
-        let placed = false;
-        let angle = 0, radius = 0;
-        let rect = {
-          left: x - width / 2,
-          right: x + width / 2,
-          top: y - height / 2,
-          bottom: y + height / 2
-        };
-
-        while (attempts < maxAttempts) {
-          let overlap = false;
-          for (const r of wordRects) {
-            if (rectsOverlap(rect, r)) {
-              overlap = true;
-              break;
-            }
-          }
-          if (!overlap) {
-            placed = true;
-            break;
-          }
-          // Spiral outward
-          angle += Math.PI / 6;
-          radius += 10;
-          x = centers[i][0] + radius * Math.cos(angle);
-          y = centers[i][1] + radius * Math.sin(angle);
-          rect = {
-            left: x - width / 2,
-            right: x + width / 2,
-            top: y - height / 2,
-            bottom: y + height / 2
-          };
-          attempts++;
+        // Draw old word fading out
+        if (fade < 1) {
+          ctx.globalAlpha = 0.95 * (1 - fade);
+          ctx.fillStyle = "#FF0000";
+          ctx.fillText(clusterWords[i], x, y);
         }
 
-        wordRects.push(rect);
-
-        ctx.globalAlpha = 0.95;
+        // Draw new word fading in
+        ctx.globalAlpha = 0.95 * fade;
         ctx.fillStyle = "#FF0000";
-        ctx.fillText(word, x, y);
+        ctx.fillText(clusterNextWords[i], x, y);
+
         ctx.restore();
       }
-
       ctx.restore();
     }
 
