@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Fade Words Every Second</title>
+  <title>Markerless AR - Reading Speed Words</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -115,20 +115,17 @@
       "yeah","year","yes","yet","you","young","your","yourself"
     ];
 
+    // Animation timing (reading speed)
+    const WORD_INTERVAL = 2000; // ms per word, adjust for reading speed
+    const FADE_DURATION = 1000; // ms for fade transition
+
     let clusters = [];
+    let clusterCenters = [];
     let clusterWords = [];
     let clusterNextWords = [];
-    let clusterFadeProgress = []; // 0 to 1, fade state
-    let clusterLastUpdate = []; // timestamp of last word change
+    let clusterFadeProgress = []; // 0..1
+    let clusterLastChange = [];
 
-    // Fade duration in ms
-    const FADE_DURATION = 500;
-    // Time between word refreshes in ms
-    const REFRESH_INTERVAL = 1000;
-    // Limit to max 10 clusters
-    const MAX_CLUSTERS = 10;
-
-    // Utility functions
     function isWideRangeGreen(r, g, b) {
       return (
         g > 80 &&
@@ -141,7 +138,6 @@
       const visited = new Uint8Array(width * height);
       const clusters = [];
       const pixelIndex = (x, y) => (y * width + x) * 4;
-
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           const idx = y * width + x;
@@ -171,7 +167,7 @@
             }
             if (cluster.length > 60) {
               clusters.push(cluster);
-              if (clusters.length >= MAX_CLUSTERS) return clusters;
+              if (clusters.length >= 10) return clusters; // Limit to 10 clusters
             }
           }
         }
@@ -192,60 +188,49 @@
       return dictionary[Math.floor(Math.random() * dictionary.length)];
     }
 
-    // Assign persistent words and fade state to cluster centers
-    function assignWordsToCenters(centers) {
-      // If number of clusters changed, reinitialize arrays
+    function syncClusterArrays(centers) {
+      // If number of clusters changed, reset arrays
       if (clusterWords.length !== centers.length) {
         clusterWords = [];
         clusterNextWords = [];
         clusterFadeProgress = [];
-        clusterLastUpdate = [];
+        clusterLastChange = [];
         for (let i = 0; i < centers.length; i++) {
           clusterWords.push(pickWord());
           clusterNextWords.push(pickWord());
-          clusterFadeProgress.push(1); // Start at fully visible
-          clusterLastUpdate.push(Date.now());
+          clusterFadeProgress.push(1);
+          clusterLastChange.push(Date.now());
         }
       }
     }
 
-    // Fade logic
-    function refreshWords(centers) {
-      const now = Date.now();
-      for (let i = 0; i < centers.length; i++) {
-        if (now - clusterLastUpdate[i] >= REFRESH_INTERVAL) {
-          clusterNextWords[i] = pickWord();
-          clusterFadeProgress[i] = 0;
-          clusterLastUpdate[i] = now;
-        }
+    function triggerNextWords() {
+      for (let i = 0; i < clusterCenters.length; i++) {
+        clusterNextWords[i] = pickWord();
+        clusterFadeProgress[i] = 0;
+        clusterLastChange[i] = Date.now();
       }
     }
 
     function updateFade() {
+      const now = Date.now();
       for (let i = 0; i < clusterFadeProgress.length; i++) {
         if (clusterFadeProgress[i] < 1) {
-          clusterFadeProgress[i] += 1 / (FADE_DURATION / (1000 / 60));
+          let t = (now - clusterLastChange[i]) / FADE_DURATION;
+          clusterFadeProgress[i] = Math.min(1, t);
           if (clusterFadeProgress[i] >= 1) {
-            clusterFadeProgress[i] = 1;
             clusterWords[i] = clusterNextWords[i];
           }
         }
       }
     }
 
-    function drawGreenOverlays(ctx, clusters) {
-      const centers = clusters.map(getClusterCenter);
-
-      assignWordsToCenters(centers);
-
-      refreshWords(centers);
+    function drawGreenOverlays(ctx, centers) {
       updateFade();
-
       ctx.save();
       ctx.strokeStyle = "#FF0000";
       ctx.globalAlpha = 0.85;
-
-      // Draw lines between centers
+      // Draw lines between all centers
       if (centers.length >= 2) {
         ctx.beginPath();
         for (let i = 0; i < centers.length; i++) {
@@ -258,8 +243,7 @@
         }
         ctx.stroke();
       }
-
-      // Draw words with fade
+      // Draw words at each center, fade between old/new
       for (let i = 0; i < centers.length; i++) {
         const [x, y] = centers[i];
         const fade = clusterFadeProgress[i];
@@ -267,23 +251,22 @@
         ctx.font = "bold 32px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-
-        // Draw old word fading out
+        // Old word fading out
         if (fade < 1) {
           ctx.globalAlpha = 0.95 * (1 - fade);
           ctx.fillStyle = "#FF0000";
           ctx.fillText(clusterWords[i], x, y);
         }
-
-        // Draw new word fading in
+        // New word fading in
         ctx.globalAlpha = 0.95 * fade;
         ctx.fillStyle = "#FF0000";
         ctx.fillText(clusterNextWords[i], x, y);
-
         ctx.restore();
       }
       ctx.restore();
     }
+
+    let lastWordTrigger = Date.now();
 
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -292,13 +275,17 @@
           greenCanvas.height = video.videoHeight;
         }
         ctx.drawImage(video, 0, 0, greenCanvas.width, greenCanvas.height);
-
         let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
         let data = frame.data;
-
         clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
-
-        drawGreenOverlays(ctx, clusters || []);
+        clusterCenters = clusters.map(getClusterCenter);
+        syncClusterArrays(clusterCenters);
+        // Word refresh logic: every WORD_INTERVAL ms
+        if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
+          triggerNextWords();
+          lastWordTrigger = Date.now();
+        }
+        drawGreenOverlays(ctx, clusterCenters);
       }
       requestAnimationFrame(draw);
     }
