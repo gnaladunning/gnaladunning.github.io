@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Max 10 Points Green Detection with Random Dictionary Words</title>
+  <title>Markerless AR - Max 10 Points Green Detection with Persistent Random Words</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -115,6 +115,9 @@
       "yeah","year","yes","yet","you","young","your","yourself"
     ];
 
+    // For persistent assignment of words to locations
+    let clusterWords = [];
+
     function isWideRangeGreen(r, g, b) {
       return (
         g > 80 &&
@@ -123,7 +126,6 @@
       );
     }
 
-    // Cluster green pixels into regions using flood fill
     function clusterGreenPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
@@ -156,7 +158,7 @@
                 }
               }
             }
-            if (cluster.length > 60) { // Only consider larger clusters
+            if (cluster.length > 60) {
               clusters.push(cluster);
               if (clusters.length >= 10) return clusters; // Limit to 10 clusters
             }
@@ -175,8 +177,21 @@
       return [sumX / cluster.length, sumY / cluster.length];
     }
 
+    // Assign persistent random words to cluster centers
+    function assignWordsToCenters(centers) {
+      // If the number of centers has changed, reassign all words
+      if (clusterWords.length !== centers.length) {
+        clusterWords = [];
+        for (let i = 0; i < centers.length; i++) {
+          clusterWords.push(dictionary[Math.floor(Math.random() * dictionary.length)]);
+        }
+      }
+    }
+
     function drawGreenOverlays(ctx, clusters) {
       const centers = clusters.map(getClusterCenter);
+
+      assignWordsToCenters(centers);
 
       ctx.save();
       ctx.strokeStyle = "#FF0000";
@@ -196,16 +211,17 @@
         ctx.stroke();
       }
 
-      // For each center, pick a random word for this frame
-      for (const [x, y] of centers) {
-        const randomWord = dictionary[Math.floor(Math.random() * dictionary.length)];
+      // Draw persistent random word at each center
+      for (let i = 0; i < centers.length; i++) {
+        const [x, y] = centers[i];
+        const word = clusterWords[i];
         ctx.save();
         ctx.globalAlpha = 0.95;
         ctx.font = "bold 32px Arial";
         ctx.fillStyle = "#FF0000";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(randomWord, x, y);
+        ctx.fillText(word, x, y);
         ctx.restore();
       }
 
@@ -225,7 +241,6 @@
 
         const clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
 
-        // On every frame, assign random words at cluster centers
         drawGreenOverlays(ctx, clusters);
       }
       requestAnimationFrame(draw);
