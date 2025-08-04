@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Slow Green Sampling</title>
+  <title>Markerless AR - Non-Overlapping Words</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -117,8 +117,6 @@
 
     let clusterWords = [];
     let clusters = [];
-    let refreshCounter = 0;
-    const SAMPLE_FRAMES = 10; // Sample green areas every 10 frames
 
     function isWideRangeGreen(r, g, b) {
       return (
@@ -189,9 +187,17 @@
       }
     }
 
+    // Helper to check if two rectangles overlap
+    function rectsOverlap(a, b) {
+      return !(b.left > a.right ||
+               b.right < a.left ||
+               b.top > a.bottom ||
+               b.bottom < a.top);
+    }
+
+    // Place words so they don't overlap
     function drawGreenOverlays(ctx, clusters) {
       const centers = clusters.map(getClusterCenter);
-
       assignWordsToCenters(centers);
 
       ctx.save();
@@ -212,16 +218,67 @@
         ctx.stroke();
       }
 
-      // Draw word at each center
+      // Store drawn word rectangles for overlap checking
+      const wordRects = [];
+
       for (let i = 0; i < centers.length; i++) {
-        const [x, y] = centers[i];
+        let [x, y] = centers[i];
         const word = clusterWords[i];
+
         ctx.save();
-        ctx.globalAlpha = 0.95;
         ctx.font = "bold 32px Arial";
-        ctx.fillStyle = "#FF0000";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+        // Measure text
+        const metrics = ctx.measureText(word);
+        // metrics.width, metrics.actualBoundingBoxAscent/Descent may be undefined in some browsers
+        const width = metrics.width;
+        // Fallback for height: use fixed value if not available
+        const height = (metrics.actualBoundingBoxAscent && metrics.actualBoundingBoxDescent) ?
+          metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : 32;
+
+        // Try to place without overlapping previous words
+        let attempts = 0;
+        const maxAttempts = 30;
+        let placed = false;
+        let angle = 0, radius = 0;
+        let rect = {
+          left: x - width / 2,
+          right: x + width / 2,
+          top: y - height / 2,
+          bottom: y + height / 2
+        };
+
+        while (attempts < maxAttempts) {
+          let overlap = false;
+          for (const r of wordRects) {
+            if (rectsOverlap(rect, r)) {
+              overlap = true;
+              break;
+            }
+          }
+          if (!overlap) {
+            placed = true;
+            break;
+          }
+          // Spiral outward
+          angle += Math.PI / 6;
+          radius += 10;
+          x = centers[i][0] + radius * Math.cos(angle);
+          y = centers[i][1] + radius * Math.sin(angle);
+          rect = {
+            left: x - width / 2,
+            right: x + width / 2,
+            top: y - height / 2,
+            bottom: y + height / 2
+          };
+          attempts++;
+        }
+
+        wordRects.push(rect);
+
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = "#FF0000";
         ctx.fillText(word, x, y);
         ctx.restore();
       }
@@ -237,15 +294,12 @@
         }
         ctx.drawImage(video, 0, 0, greenCanvas.width, greenCanvas.height);
 
-        if (refreshCounter % SAMPLE_FRAMES === 0) {
-          // Sample green areas at slower rate
-          let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
-          let data = frame.data;
-          clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
-        }
+        let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
+        let data = frame.data;
+
+        clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
 
         drawGreenOverlays(ctx, clusters || []);
-        refreshCounter++;
       }
       requestAnimationFrame(draw);
     }
