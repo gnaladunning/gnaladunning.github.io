@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Max 10 Points Green Detection with Persistent Random Words</title>
+  <title>Markerless AR - Slow Random Word Refresh</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -115,8 +115,10 @@
       "yeah","year","yes","yet","you","young","your","yourself"
     ];
 
-    // For persistent assignment of words to locations
+    // Persistent assignment and slow refresh
     let clusterWords = [];
+    let refreshCounter = 0;
+    const REFRESH_FRAMES = 10; // Change words every 10 frames (0.1x speed)
 
     function isWideRangeGreen(r, g, b) {
       return (
@@ -177,10 +179,9 @@
       return [sumX / cluster.length, sumY / cluster.length];
     }
 
-    // Assign persistent random words to cluster centers
-    function assignWordsToCenters(centers) {
-      // If the number of centers has changed, reassign all words
-      if (clusterWords.length !== centers.length) {
+    function assignWordsToCenters(centers, force=false) {
+      // Reassign words if count changes or forced
+      if (force || clusterWords.length !== centers.length) {
         clusterWords = [];
         for (let i = 0; i < centers.length; i++) {
           clusterWords.push(dictionary[Math.floor(Math.random() * dictionary.length)]);
@@ -188,10 +189,24 @@
       }
     }
 
+    function refreshWords(centers) {
+      // Change words for all centers
+      clusterWords = [];
+      for (let i = 0; i < centers.length; i++) {
+        clusterWords.push(dictionary[Math.floor(Math.random() * dictionary.length)]);
+      }
+    }
+
     function drawGreenOverlays(ctx, clusters) {
       const centers = clusters.map(getClusterCenter);
 
+      // Assign words at first, or if cluster count changes
       assignWordsToCenters(centers);
+
+      // Slow refresh: only change words every REFRESH_FRAMES frames
+      if (refreshCounter % REFRESH_FRAMES === 0) {
+        refreshWords(centers);
+      }
 
       ctx.save();
       ctx.strokeStyle = "#FF0000";
@@ -211,7 +226,7 @@
         ctx.stroke();
       }
 
-      // Draw persistent random word at each center
+      // Draw persistent word at each center
       for (let i = 0; i < centers.length; i++) {
         const [x, y] = centers[i];
         const word = clusterWords[i];
@@ -242,6 +257,7 @@
         const clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
 
         drawGreenOverlays(ctx, clusters);
+        refreshCounter++;
       }
       requestAnimationFrame(draw);
     }
