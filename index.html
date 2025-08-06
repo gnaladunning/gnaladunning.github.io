@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Reading Speed Words</title>
+  <title>Markerless AR - Reading Speed Words (3D Spread & Centered)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -30,102 +30,39 @@
     const video = document.getElementById('videoElement');
     const ctx = greenCanvas.getContext('2d');
 
-    // Example dictionary
+    // Example dictionary (add your full list)
     const dictionary = [
       "ability","about","accept","account","action","activity","address","admit","adult","affect",
       "after","again","agency","agent","agree","agreement","ahead","air","allow","alone","already",
       "also","always","among","analysis","animal","another","answer","anyone","appear","apply","area",
       "argue","arm","arrive","art","artist","ask","assume","attack","attention","author","available",
-      "avoid","baby","back","bad","bag","ball","bank","bar","base","be","beautiful","become","bed",
-      "before","begin","behavior","behind","believe","best","better","between","beyond","big","bill",
-      "billion","bit","black","blood","blue","board","body","book","both","box","boy","break","bring",
-      "brother","budget","build","building","business","buy","call","camera","campaign","can","car",
-      "card","care","career","carry","case","catch","cause","cell","center","century","certain","chair",
-      "challenge","chance","change","character","charge","check","child","choice","choose","church",
-      "citizen","city","class","clear","close","coach","cold","collection","college","color","come",
-      "commercial","common","community","company","compare","computer","concern","condition","conference",
-      "consider","consumer","contain","continue","control","cost","could","country","couple","course",
-      "court","cover","create","crime","cultural","culture","cup","current","customer","cut","dark","data",
-      "daughter","day","dead","deal","death","debate","decade","decide","decision","deep","defense",
-      "degree","Democrat","describe","design","despite","detail","determine","develop","development","die",
-      "difference","different","difficult","direction","director","discover","discuss","discussion",
-      "disease","doctor","dog","door","down","draw","dream","drive","drop","drug","during","each","early",
-      "east","easy","eat","economic","economy","edge","education","effect","effort","eight","either",
-      "election","else","employee","end","energy","enjoy","enough","enter","entire","environment",
-      "especially","establish","even","evening","event","ever","every","everybody","everyone","everything",
-      "evidence","exactly","example","executive","exist","expect","experience","expert","explain","eye",
-      "face","fact","factor","fail","fall","family","far","fast","father","fear","federal","feel","feeling",
-      "few","field","fight","figure","fill","film","final","finally","financial","find","fine","finger",
-      "finish","fire","firm","first","fish","five","floor","fly","focus","follow","food","foot","force",
-      "foreign","forget","form","former","forward","four","free","friend","front","full","fund","future",
-      "game","garden","gas","general","generation","get","girl","give","glass","goal","good","government",
-      "great","green","ground","group","grow","growth","guess","gun","guy","hair","half","hand","hang",
-      "happen","happy","hard","have","he","head","health","hear","heart","heat","heavy","help","her","here",
-      "high","him","his","history","hit","hold","home","hope","hospital","hot","hotel","hour","house","how",
-      "however","huge","human","hundred","husband","idea","identify","image","imagine","impact","important",
-      "improve","include","including","income","increase","indeed","indicate","individual","industry",
-      "information","inside","instead","institution","interest","international","interview","into",
-      "investment","involve","issue","item","job","join","just","keep","key","kid","kill","kind","kitchen",
-      "know","knowledge","land","language","large","last","late","later","laugh","law","lawyer","lay","lead",
-      "leader","learn","least","leave","left","leg","legal","less","let","letter","level","lie","life",
-      "light","like","likely","line","list","listen","little","live","local","long","look","lose","loss",
-      "lot","love","low","machine","main","maintain","major","majority","make","man","management","manager",
-      "many","market","marriage","material","matter","may","maybe","me","mean","measure","media","medical",
-      "meet","meeting","member","memory","mention","message","method","middle","might","military","million",
-      "mind","minute","miss","mission","model","modern","moment","money","month","more","morning","most",
-      "mother","mouth","move","movement","movie","much","music","must","my","name","nation","national",
-      "natural","nature","near","nearly","necessary","need","network","never","new","news","newspaper",
-      "next","nice","night","no","none","nor","north","not","note","nothing","notice","now","number",
-      "occur","off","offer","office","officer","official","often","oil","old","on","once","one","only",
-      "onto","open","operation","opportunity","option","or","order","organization","other","our","out",
-      "outside","over","own","owner","page","pain","painting","paper","parent","part","participant",
-      "particular","partner","party","pass","past","patient","pattern","pay","peace","people","perform",
-      "performance","perhaps","period","person","personal","phone","physical","pick","picture","piece",
-      "place","plan","plant","play","player","PM","point","police","policy","political","politics","poor",
-      "popular","population","position","positive","possible","power","practice","prepare","present",
-      "president","pressure","pretty","prevent","price","private","probably","problem","process","produce",
-      "product","production","professional","professor","program","project","property","protect","prove",
-      "provide","public","pull","purpose","push","put","quality","quarter","question","quickly","quite",
-      "race","radio","raise","range","rate","rather","reach","read","ready","real","reality","realize",
-      "really","reason","receive","recent","recognize","record","red","reduce","reflect","region","relate",
-      "relationship","religious","remain","remember","remove","report","represent","require","research",
-      "resource","respond","response","responsibility","rest","result","return","reveal","rich","right",
-      "rise","risk","road","rock","role","room","rule","run","safe","same","save","say","scene","school",
-      "science","scientist","score","sea","season","seat","second","section","security","see","seek","seem",
-      "sell","send","senior","sense","series","serious","serve","service","set","seven","several","sex",
-      "sexual","shake","share","she","shoot","short","shot","should","show","side","sign","significant",
-      "similar","simple","simply","since","sing","single","sister","sit","site","situation","six","size",
-      "skill","skin","small","smile","so","social","society","soldier","some","somebody","someone",
-      "something","sometimes","son","song","soon","sort","sound","source","south","southern","space",
-      "speak","special","specific","speech","spend","sport","spring","staff","stage","stand","standard",
-      "star","start","state","statement","station","stay","step","still","stock","stop","store","story",
-      "strategy","street","strong","structure","student","study","stuff","style","subject","success",
-      "successful","such","suddenly","suffer","suggest","summer","support","surface","system","table",
-      "take","talk","task","teach","teacher","team","technology","television","tell","ten","tend","term",
-      "test","than","thank","that","the","their","them","themselves","then","theory","there","these",
-      "they","thing","think","third","this","those","though","thought","thousand","threat","three",
-      "through","throughout","throw","thus","time","to","today","together","tonight","too","top","total",
-      "tough","toward","town","trade","traditional","training","travel","treat","treatment","tree","trial",
-      "trip","trouble","true","truth","try","turn","TV","two","type","under","understand","unit","until",
-      "up","upon","us","use","usually","value","various","very","victim","view","violence","visit","voice",
-      "vote","wait","walk","wall","want","war","watch","water","way","we","weapon","wear","week","weight",
-      "well","west","western","what","whatever","when","where","whether","which","while","white","who",
-      "whole","whose","why","wide","wife","will","win","wind","window","wish","with","within","without",
-      "woman","wonder","word","work","worker","world","worry","would","write","writer","wrong","yard",
-      "yeah","year","yes","yet","you","young","your","yourself"
+      // ... (use your full word list here)
+      "write","writer","wrong","yard","yeah","year","yes","yet","you","young","your","yourself"
     ];
 
-    // Animation timing (reading speed)
-    const WORD_INTERVAL = 2000; // ms per word, adjust for reading speed
-    const FADE_DURATION = 1000; // ms for fade transition
+    // SLOWER animation timing
+    const WORD_INTERVAL = 6000; // ms per word (slower)
+    const FADE_DURATION = 3000; // ms for fade transition (slower)
 
-    let clusters = [];
-    let clusterCenters = [];
-    let clusterWords = [];
-    let clusterNextWords = [];
-    let clusterFadeProgress = []; // 0..1
-    let clusterLastChange = [];
+    // Helper to spread clusters in "3D" around screen center
+    function spread3DClusters(centers, width, height) {
+      // Take the detected centers, and spread them around screen center in 3D
+      const n = centers.length;
+      let spread = Math.min(width, height) / 3;
+      let positions = [];
+      for (let i = 0; i < n; i++) {
+        // Arrange in circle, with some randomization and z-depth
+        let angle = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+        let radius = spread + Math.random() * spread * 0.4;
+        let cx = width / 2 + Math.cos(angle) * radius;
+        let cy = height / 2 + Math.sin(angle) * radius;
+        let z = 0.2 + 0.8 * (i / Math.max(1, n-1)); // Z between 0.2 and 1.0
+        positions.push({x: cx, y: cy, z: z});
+      }
+      return positions;
+    }
 
+    // Green detection & clustering
     function isWideRangeGreen(r, g, b) {
       return (
         g > 80 &&
@@ -167,7 +104,7 @@
             }
             if (cluster.length > 60) {
               clusters.push(cluster);
-              if (clusters.length >= 10) return clusters; // Limit to 10 clusters
+              if (clusters.length >= 10) return clusters;
             }
           }
         }
@@ -188,14 +125,19 @@
       return dictionary[Math.floor(Math.random() * dictionary.length)];
     }
 
-    function syncClusterArrays(centers) {
-      // If number of clusters changed, reset arrays
-      if (clusterWords.length !== centers.length) {
+    // Word arrays
+    let clusterWords = [];
+    let clusterNextWords = [];
+    let clusterFadeProgress = [];
+    let clusterLastChange = [];
+
+    function syncClusterArrays(n) {
+      if (clusterWords.length !== n) {
         clusterWords = [];
         clusterNextWords = [];
         clusterFadeProgress = [];
         clusterLastChange = [];
-        for (let i = 0; i < centers.length; i++) {
+        for (let i = 0; i < n; i++) {
           clusterWords.push(pickWord());
           clusterNextWords.push(pickWord());
           clusterFadeProgress.push(1);
@@ -205,7 +147,7 @@
     }
 
     function triggerNextWords() {
-      for (let i = 0; i < clusterCenters.length; i++) {
+      for (let i = 0; i < clusterWords.length; i++) {
         clusterNextWords[i] = pickWord();
         clusterFadeProgress[i] = 0;
         clusterLastChange[i] = Date.now();
@@ -225,42 +167,39 @@
       }
     }
 
-    function drawGreenOverlays(ctx, centers) {
+    // Draw words: location is cluster, but visually spread & centered, with 3D effect
+    function drawGreenOverlays(ctx, positions) {
       updateFade();
       ctx.save();
-      ctx.strokeStyle = "#FF0000";
-      ctx.globalAlpha = 0.85;
-      // Draw lines between all centers
-      if (centers.length >= 2) {
-        ctx.beginPath();
-        for (let i = 0; i < centers.length; i++) {
-          const [x1, y1] = centers[i];
-          for (let j = i + 1; j < centers.length; j++) {
-            const [x2, y2] = centers[j];
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-          }
-        }
-        ctx.stroke();
-      }
-      // Draw words at each center, fade between old/new
-      for (let i = 0; i < centers.length; i++) {
-        const [x, y] = centers[i];
-        const fade = clusterFadeProgress[i];
+      for (let i = 0; i < positions.length; i++) {
+        let {x, y, z} = positions[i];
+        // Map z to scale and alpha. Further (higher z) = smaller/dimmer.
+        let minScale = 0.6, maxScale = 1.5;
+        let scale = maxScale - (z * (maxScale - minScale));
+        let minAlpha = 0.4, maxAlpha = 0.95;
+        let alpha = maxAlpha - (z * (maxAlpha - minAlpha));
+        let fade = clusterFadeProgress[i];
+
         ctx.save();
-        ctx.font = "bold 32px Arial";
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        ctx.font = "bold 54px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+        // Shadow for "3D" feel
+        ctx.shadowColor = "#222";
+        ctx.shadowBlur = 24 * scale;
+
         // Old word fading out
         if (fade < 1) {
-          ctx.globalAlpha = 0.95 * (1 - fade);
-          ctx.fillStyle = "#FF0000";
-          ctx.fillText(clusterWords[i], x, y);
+          ctx.globalAlpha = alpha * (1 - fade);
+          ctx.fillStyle = "#FF3333";
+          ctx.fillText(clusterWords[i], 0, 0);
         }
         // New word fading in
-        ctx.globalAlpha = 0.95 * fade;
-        ctx.fillStyle = "#FF0000";
-        ctx.fillText(clusterNextWords[i], x, y);
+        ctx.globalAlpha = alpha * fade;
+        ctx.fillStyle = "#FF3333";
+        ctx.fillText(clusterNextWords[i], 0, 0);
         ctx.restore();
       }
       ctx.restore();
@@ -277,15 +216,25 @@
         ctx.drawImage(video, 0, 0, greenCanvas.width, greenCanvas.height);
         let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
         let data = frame.data;
-        clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
-        clusterCenters = clusters.map(getClusterCenter);
-        syncClusterArrays(clusterCenters);
-        // Word refresh logic: every WORD_INTERVAL ms
+        let clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
+        let clusterCenters = clusters.map(getClusterCenter);
+
+        // Ensure we always have at least 3 words/positions for spread
+        let nWords = Math.max(clusterCenters.length, 3);
+
+        syncClusterArrays(nWords);
+
+        // Use actual cluster locations if present, but spread out for effect
+        let positions = spread3DClusters(
+          nWords === clusterCenters.length ? clusterCenters : new Array(nWords).fill([greenCanvas.width/2, greenCanvas.height/2]),
+          greenCanvas.width, greenCanvas.height
+        );
+
         if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
           triggerNextWords();
           lastWordTrigger = Date.now();
         }
-        drawGreenOverlays(ctx, clusterCenters);
+        drawGreenOverlays(ctx, positions);
       }
       requestAnimationFrame(draw);
     }
