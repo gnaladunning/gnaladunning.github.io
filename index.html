@@ -30,7 +30,7 @@
     const video = document.getElementById('videoElement');
     const ctx = greenCanvas.getContext('2d');
 
-    // 500-word dictionary (sample, expand as needed)
+    // 500-word dictionary (sample)
     const dictionary = [
       "ability","about","accept","account","action","activity","address","admit","adult","affect","after","again","agency","agent","agree","agreement","ahead","air","allow","alone","already",
       "also","always","among","analysis","animal","another","answer","anyone","appear","apply","area","argue","arm","arrive","art","artist","ask","assume","attack","attention","author","available",
@@ -72,7 +72,6 @@
       "type","under","understand","unit","until","up","upon","us","use","usually","value","various","very","victim","view","violence","visit","voice","vote","wait","walk","wall","want","war","watch",
       "water","way","we","weapon","wear","week","weight","well","west","western","what","whatever","when","where","whether","which","while","white","who","whole","whose","why","wide","wife","will",
       "win","wind","window","wish","with","within","without","woman","wonder","word","work","worker","world","worry","would","write","writer","wrong","yard","yeah","year","yes","yet","you","young","your","yourself",
-      // Additional 100+ words for 500 total:
       "abandon","absorb","abstract","abuse","academy","accelerate","accent","access","acclaim","accompany","accumulate","accuracy","accuse","ache","achieve","acid","acquire","acre","actress","adapt",
       "addict","adjust","adopt","adore","advance","adventure","advertise","advise","affair","affect","afford","agenda","aggravate","agile","agitate","agreeable","aid","aim","alarm","alien","allege",
       "allocate","allowance","ally","alter","amaze","ambition","amend","amid","amuse","anchor","anger","angle","annex","annoy","annual","anticipate","anxiety","apology","appeal","appendix","appetite",
@@ -83,12 +82,12 @@
       "beware","bias","bid","bigot","billboard","bin","biology","bishop","bizarre","blade"
     ];
 
-    // SLOWER animation timing
-    const WORD_INTERVAL = 7000; // ms per word (slower)
-    const FADE_DURATION = 3500; // ms for fade transition (slower)
-    const MAX_WORDS = 10; // Limit words/clusters to 10 at any time
+    // Animation parameters
+    const WORD_INTERVAL = 7000;
+    const FADE_DURATION = 3500;
+    const MAX_WORDS = 10;
 
-    // Green detection & clustering - expanded green range for more clusters
+    // Expanded green range for more clusters
     function isWideRangeGreen(r, g, b) {
       // Allow a wider range of green values
       return (
@@ -98,11 +97,12 @@
       );
     }
 
+    // Only clusters entirely in camera field of view
     function clusterGreenPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
       const pixelIndex = (x, y) => (y * width + x) * 4;
-      for (let y = 0; y < height; y += 1) { // Sample every pixel for full field of view
+      for (let y = 0; y < height; y += 1) {
         for (let x = 0; x < width; x += 1) {
           const idx = y * width + x;
           if (visited[idx]) continue;
@@ -110,10 +110,13 @@
           if (isWideRangeGreen(data[i], data[i + 1], data[i + 2])) {
             const queue = [[x, y]];
             const cluster = [];
+            let minX = x, maxX = x, minY = y, maxY = y;
             visited[idx] = 1;
             while (queue.length) {
               const [cx, cy] = queue.pop();
               cluster.push([cx, cy]);
+              minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+              minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
               for (let dx = -1; dx <= 1; dx++) {
                 for (let dy = -1; dy <= 1; dy++) {
                   const nx = cx + dx, ny = cy + dy;
@@ -129,9 +132,14 @@
                 }
               }
             }
-            if (cluster.length > 30) { // Detect smaller clusters for more greens
+            // Only keep clusters entirely inside camera field of view
+            if (
+              cluster.length > 30 &&
+              minX > 0 && maxX < width - 1 &&
+              minY > 0 && maxY < height - 1
+            ) {
               clusters.push(cluster);
-              if (clusters.length >= MAX_WORDS) return clusters; // Limit clusters to MAX_WORDS
+              if (clusters.length >= MAX_WORDS) return clusters;
             }
           }
         }
@@ -182,7 +190,6 @@
         clusterNextWords[i] = pickWord();
         clusterFadeProgress[i] = 0;
         clusterLastChange[i] = Date.now();
-        // Update depth for new word
         clusterDepths[i] = Math.random();
       }
     }
@@ -221,15 +228,13 @@
         ctx.globalAlpha = 1.0;
       }
 
-      // Draw words at each center, spread with font size and 3D effect
+      // Smaller font for readability
       for (let i = 0; i < centers.length; i++) {
         let [x, y] = centers[i];
-        let z = clusterDepths[i]; // 0..1, higher z further away
-
-        // Map z to scale, font size, and alpha
-        let minFont = 32, maxFont = 88;
+        let z = clusterDepths[i];
+        let minFont = 18, maxFont = 32;
         let fontSize = Math.round(maxFont - z * (maxFont - minFont));
-        let minAlpha = 0.4, maxAlpha = 0.95;
+        let minAlpha = 0.5, maxAlpha = 0.9;
         let alpha = maxAlpha - z * (maxAlpha - minAlpha);
         let fade = clusterFadeProgress[i];
 
@@ -239,13 +244,11 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // Old word fading out
         if (fade < 1) {
           ctx.globalAlpha = alpha * (1 - fade);
           ctx.fillStyle = "#FF3333";
           ctx.fillText(clusterWords[i], 0, 0);
         }
-        // New word fading in
         ctx.globalAlpha = alpha * fade;
         ctx.fillStyle = "#FF3333";
         ctx.fillText(clusterNextWords[i], 0, 0);
