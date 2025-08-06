@@ -86,13 +86,15 @@
     // SLOWER animation timing
     const WORD_INTERVAL = 7000; // ms per word (slower)
     const FADE_DURATION = 3500; // ms for fade transition (slower)
+    const MAX_WORDS = 10; // Limit words/clusters to 10 at any time
 
-    // Green detection & clustering
+    // Green detection & clustering - expanded green range for more clusters
     function isWideRangeGreen(r, g, b) {
+      // Allow a wider range of green values
       return (
-        g > 80 &&
-        g > r + 20 && g > b + 20 &&
-        (r < 180 && b < 180)
+        g > 60 &&
+        g > r + 10 && g > b + 10 &&
+        r < 200 && b < 200
       );
     }
 
@@ -100,8 +102,8 @@
       const visited = new Uint8Array(width * height);
       const clusters = [];
       const pixelIndex = (x, y) => (y * width + x) * 4;
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
+      for (let y = 0; y < height; y += 1) { // Sample every pixel for full field of view
+        for (let x = 0; x < width; x += 1) {
           const idx = y * width + x;
           if (visited[idx]) continue;
           const i = pixelIndex(x, y);
@@ -127,9 +129,9 @@
                 }
               }
             }
-            if (cluster.length > 60) {
+            if (cluster.length > 30) { // Detect smaller clusters for more greens
               clusters.push(cluster);
-              if (clusters.length >= 10) return clusters; // Limit to 10 clusters
+              if (clusters.length >= MAX_WORDS) return clusters; // Limit clusters to MAX_WORDS
             }
           }
         }
@@ -267,8 +269,9 @@
         let clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
         let clusterCenters = clusters.map(getClusterCenter);
 
-        // Only use detected clusters, do not generate pseudo-clusters
-        let nWords = clusterCenters.length;
+        // Limit number of clusters/words to MAX_WORDS
+        let nWords = Math.min(clusterCenters.length, MAX_WORDS);
+        clusterCenters = clusterCenters.slice(0, nWords);
         syncClusterArrays(nWords);
 
         if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
