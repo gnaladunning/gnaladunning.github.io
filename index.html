@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Reading Speed Words (3D Spread & Centered)</title>
+  <title>Markerless AR - Reading Speed Words 3D Spread & Lines</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin:0; overflow:hidden; }
@@ -41,26 +41,8 @@
     ];
 
     // SLOWER animation timing
-    const WORD_INTERVAL = 6000; // ms per word (slower)
-    const FADE_DURATION = 3000; // ms for fade transition (slower)
-
-    // Helper to spread clusters in "3D" around screen center
-    function spread3DClusters(centers, width, height) {
-      // Take the detected centers, and spread them around screen center in 3D
-      const n = centers.length;
-      let spread = Math.min(width, height) / 3;
-      let positions = [];
-      for (let i = 0; i < n; i++) {
-        // Arrange in circle, with some randomization and z-depth
-        let angle = (i / n) * Math.PI * 2 + Math.random() * 0.5;
-        let radius = spread + Math.random() * spread * 0.4;
-        let cx = width / 2 + Math.cos(angle) * radius;
-        let cy = height / 2 + Math.sin(angle) * radius;
-        let z = 0.2 + 0.8 * (i / Math.max(1, n-1)); // Z between 0.2 and 1.0
-        positions.push({x: cx, y: cy, z: z});
-      }
-      return positions;
-    }
+    const WORD_INTERVAL = 7000; // ms per word (slower)
+    const FADE_DURATION = 3500; // ms for fade transition (slower)
 
     // Green detection & clustering
     function isWideRangeGreen(r, g, b) {
@@ -104,7 +86,7 @@
             }
             if (cluster.length > 60) {
               clusters.push(cluster);
-              if (clusters.length >= 10) return clusters;
+              if (clusters.length >= 10) return clusters; // Limit to 10 clusters
             }
           }
         }
@@ -130,6 +112,7 @@
     let clusterNextWords = [];
     let clusterFadeProgress = [];
     let clusterLastChange = [];
+    let clusterDepths = [];
 
     function syncClusterArrays(n) {
       if (clusterWords.length !== n) {
@@ -137,11 +120,14 @@
         clusterNextWords = [];
         clusterFadeProgress = [];
         clusterLastChange = [];
+        clusterDepths = [];
         for (let i = 0; i < n; i++) {
           clusterWords.push(pickWord());
           clusterNextWords.push(pickWord());
           clusterFadeProgress.push(1);
           clusterLastChange.push(Date.now());
+          // Assign a pseudo-3D depth for each cluster (random between 0 and 1)
+          clusterDepths.push(Math.random());
         }
       }
     }
@@ -151,6 +137,8 @@
         clusterNextWords[i] = pickWord();
         clusterFadeProgress[i] = 0;
         clusterLastChange[i] = Date.now();
+        // Update depth for new word
+        clusterDepths[i] = Math.random();
       }
     }
 
@@ -167,28 +155,58 @@
       }
     }
 
-    // Draw words: location is cluster, but visually spread & centered, with 3D effect
-    function drawGreenOverlays(ctx, positions) {
+    // Draw words at cluster locations, spread and 3D, draw consecutive lines
+    function drawGreenOverlays(ctx, centers) {
       updateFade();
       ctx.save();
-      for (let i = 0; i < positions.length; i++) {
-        let {x, y, z} = positions[i];
-        // Map z to scale and alpha. Further (higher z) = smaller/dimmer.
-        let minScale = 0.6, maxScale = 1.5;
-        let scale = maxScale - (z * (maxScale - minScale));
+
+      // Draw consecutive lines between cluster centers
+      if (centers.length >= 2) {
+        ctx.beginPath();
+        ctx.strokeStyle = "#00FF00";
+        ctx.lineWidth = 4;
+        for (let i = 0; i < centers.length - 1; i++) {
+          let [x1, y1] = centers[i];
+          let [x2, y2] = centers[i+1];
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        ctx.globalAlpha = 0.6;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+
+      // Draw words at each center, spread with font size and 3D effect
+      for (let i = 0; i < centers.length; i++) {
+        let [x, y] = centers[i];
+        let z = clusterDepths[i]; // 0..1, higher z further away
+
+        // Map z to scale, font size, and alpha
+        let minFont = 28, maxFont = 84;
+        let fontSize = Math.round(maxFont - z * (maxFont - minFont));
         let minAlpha = 0.4, maxAlpha = 0.95;
-        let alpha = maxAlpha - (z * (maxAlpha - minAlpha));
+        let alpha = maxAlpha - z * (maxAlpha - minAlpha);
         let fade = clusterFadeProgress[i];
+
+        // Spread the cluster positions out from center for more clarity
+        // Move away from center based on z
+        let canvasW = greenCanvas.width;
+        let canvasH = greenCanvas.height;
+        let centerX = canvasW / 2;
+        let centerY = canvasH / 2;
+        let spreadFactor = 0.3 + 0.7 * z; // More distant clusters are spread further
+        x = centerX + (x - centerX) * spreadFactor;
+        y = centerY + (y - centerY) * spreadFactor;
 
         ctx.save();
         ctx.translate(x, y);
-        ctx.scale(scale, scale);
-        ctx.font = "bold 54px Arial";
+        ctx.font = `bold ${fontSize}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+
         // Shadow for "3D" feel
         ctx.shadowColor = "#222";
-        ctx.shadowBlur = 24 * scale;
+        ctx.shadowBlur = 24 * (fontSize / maxFont);
 
         // Old word fading out
         if (fade < 1) {
@@ -200,6 +218,7 @@
         ctx.globalAlpha = alpha * fade;
         ctx.fillStyle = "#FF3333";
         ctx.fillText(clusterNextWords[i], 0, 0);
+
         ctx.restore();
       }
       ctx.restore();
@@ -222,19 +241,28 @@
         // Ensure we always have at least 3 words/positions for spread
         let nWords = Math.max(clusterCenters.length, 3);
 
-        syncClusterArrays(nWords);
+        // If not enough clusters, make up positions around center
+        if (clusterCenters.length < nWords) {
+          let width = greenCanvas.width, height = greenCanvas.height;
+          let angleStep = (Math.PI * 2) / nWords;
+          clusterCenters = [];
+          for (let i = 0; i < nWords; i++) {
+            let angle = i * angleStep;
+            let radius = Math.min(width, height) / 3;
+            clusterCenters.push([
+              width / 2 + Math.cos(angle) * radius,
+              height / 2 + Math.sin(angle) * radius
+            ]);
+          }
+        }
 
-        // Use actual cluster locations if present, but spread out for effect
-        let positions = spread3DClusters(
-          nWords === clusterCenters.length ? clusterCenters : new Array(nWords).fill([greenCanvas.width/2, greenCanvas.height/2]),
-          greenCanvas.width, greenCanvas.height
-        );
+        syncClusterArrays(nWords);
 
         if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
           triggerNextWords();
           lastWordTrigger = Date.now();
         }
-        drawGreenOverlays(ctx, positions);
+        drawGreenOverlays(ctx, clusterCenters);
       }
       requestAnimationFrame(draw);
     }
