@@ -3,19 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <title>Markerless AR - Reading Speed Words (No Flicker)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <style>
-    body { margin:0; overflow:hidden; }
-    #greenCanvas {
-      position: fixed;
-      top: 0;<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Markerless AR - Reading Speed Words (No Flicker)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <style>
-    body { margin:0; overflow:hidden; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      touch-action: none;
+      background: #000;
+    }
     #greenCanvas {
       position: fixed;
       top: 0;
@@ -26,6 +24,7 @@
       pointer-events: none;
       background: #000;
       object-fit: cover;
+      display: block;
     }
     #videoElement {
       display: none;
@@ -165,12 +164,9 @@
       }
     }
 
-    // Clean fade: only one word shown at a time, no flicker
     function drawGreenOverlays(ctx, centers) {
       updateFade();
       ctx.save();
-
-      // Draw consecutive lines between cluster centers
       if (centers.length >= 2) {
         ctx.beginPath();
         ctx.strokeStyle = "#FF3333";
@@ -185,7 +181,6 @@
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
-
       for (let i = 0; i < centers.length; i++) {
         let [x, y] = centers[i];
         let z = clusterDepths[i];
@@ -194,14 +189,11 @@
         let minAlpha = 0.5, maxAlpha = 0.9;
         let alpha = maxAlpha - z * (maxAlpha - minAlpha);
         let fade = clusterFadeProgress[i];
-
         ctx.save();
         ctx.translate(x, y);
         ctx.font = `bold ${fontSize}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-
-        // Show only one word at a time, fade between old and new
         let word, wordAlpha;
         if (fade < 1) {
           word = clusterNextWords[i];
@@ -213,7 +205,6 @@
         ctx.globalAlpha = wordAlpha;
         ctx.fillStyle = "#FF3333";
         ctx.fillText(word, 0, 0);
-
         ctx.restore();
       }
       ctx.restore();
@@ -232,11 +223,9 @@
         let data = frame.data;
         let clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
         let clusterCenters = clusters.map(getClusterCenter);
-
         let nWords = Math.min(clusterCenters.length, MAX_WORDS);
         clusterCenters = clusterCenters.slice(0, nWords);
         syncClusterArrays(nWords);
-
         if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
           triggerNextWords();
           lastWordTrigger = Date.now();
@@ -261,260 +250,17 @@
       });
 
     window.addEventListener('resize', () => {
-      if (video.videoWidth && video.videoHeight) {
-        greenCanvas.width = video.videoWidth;
-        greenCanvas.height = video.videoHeight;
-      }
+      // Match canvas size to viewport
+      greenCanvas.width = window.innerWidth;
+      greenCanvas.height = window.innerHeight;
     });
-  </script>
-</body>
-</html>
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1;
-      pointer-events: none;
-      background: #000;
-      object-fit: cover;
-    }
-    #videoElement {
-      display: none;
-    }
-  </style>
-</head>
-<body>
-  <video id="videoElement" autoplay playsinline muted></video>
-  <canvas id="greenCanvas"></canvas>
-  <script>
-    const greenCanvas = document.getElementById('greenCanvas');
-    const video = document.getElementById('videoElement');
-    const ctx = greenCanvas.getContext('2d');
 
-    // Example dictionary (expand as needed)
-    const dictionary = [
-      "ability","about","accept","account","action","activity","address","admit","adult","affect","after","again","agency","agent","agree","agreement","ahead","air","allow","alone","already",
-      // ... (total 500 words, truncated for brevity, use your full list)
-      "write","writer","wrong","yard","yeah","year","yes","yet","you","young","your","yourself"
-    ];
-
-    const WORD_INTERVAL = 7000;  // ms per word
-    const FADE_DURATION = 3500;  // ms for fade transition
-    const MAX_WORDS = 10;
-
-    function isWideRangeGreen(r, g, b) {
-      return (
-        g > 60 &&
-        g > r + 10 && g > b + 10 &&
-        r < 200 && b < 200
-      );
-    }
-
-    function clusterGreenPixels(data, width, height) {
-      const visited = new Uint8Array(width * height);
-      const clusters = [];
-      const pixelIndex = (x, y) => (y * width + x) * 4;
-      for (let y = 0; y < height; y += 1) {
-        for (let x = 0; x < width; x += 1) {
-          const idx = y * width + x;
-          if (visited[idx]) continue;
-          const i = pixelIndex(x, y);
-          if (isWideRangeGreen(data[i], data[i + 1], data[i + 2])) {
-            const queue = [[x, y]];
-            const cluster = [];
-            let minX = x, maxX = x, minY = y, maxY = y;
-            visited[idx] = 1;
-            while (queue.length) {
-              const [cx, cy] = queue.pop();
-              cluster.push([cx, cy]);
-              minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
-              minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
-              for (let dx = -1; dx <= 1; dx++) {
-                for (let dy = -1; dy <= 1; dy++) {
-                  const nx = cx + dx, ny = cy + dy;
-                  if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                  const nidx = ny * width + nx;
-                  if (!visited[nidx]) {
-                    const ni = pixelIndex(nx, ny);
-                    if (isWideRangeGreen(data[ni], data[ni + 1], data[ni + 2])) {
-                      queue.push([nx, ny]);
-                      visited[nidx] = 1;
-                    }
-                  }
-                }
-              }
-            }
-            if (
-              cluster.length > 30 &&
-              minX > 0 && maxX < width - 1 &&
-              minY > 0 && maxY < height - 1
-            ) {
-              clusters.push(cluster);
-              if (clusters.length >= MAX_WORDS) return clusters;
-            }
-          }
-        }
-      }
-      return clusters;
-    }
-
-    function getClusterCenter(cluster) {
-      let sumX = 0, sumY = 0;
-      for (const [x, y] of cluster) {
-        sumX += x;
-        sumY += y;
-      }
-      return [sumX / cluster.length, sumY / cluster.length];
-    }
-
-    function pickWord() {
-      return dictionary[Math.floor(Math.random() * dictionary.length)];
-    }
-
-    let clusterWords = [];
-    let clusterNextWords = [];
-    let clusterFadeProgress = [];
-    let clusterLastChange = [];
-    let clusterDepths = [];
-
-    function syncClusterArrays(n) {
-      if (clusterWords.length !== n) {
-        clusterWords = [];
-        clusterNextWords = [];
-        clusterFadeProgress = [];
-        clusterLastChange = [];
-        clusterDepths = [];
-        for (let i = 0; i < n; i++) {
-          clusterWords.push(pickWord());
-          clusterNextWords.push(pickWord());
-          clusterFadeProgress.push(1);
-          clusterLastChange.push(Date.now());
-          clusterDepths.push(Math.random());
-        }
-      }
-    }
-
-    function triggerNextWords() {
-      for (let i = 0; i < clusterWords.length; i++) {
-        clusterNextWords[i] = pickWord();
-        clusterFadeProgress[i] = 0;
-        clusterLastChange[i] = Date.now();
-        clusterDepths[i] = Math.random();
-      }
-    }
-
-    function updateFade() {
-      const now = Date.now();
-      for (let i = 0; i < clusterFadeProgress.length; i++) {
-        if (clusterFadeProgress[i] < 1) {
-          let t = (now - clusterLastChange[i]) / FADE_DURATION;
-          clusterFadeProgress[i] = Math.min(1, t);
-          if (clusterFadeProgress[i] >= 1) {
-            clusterWords[i] = clusterNextWords[i];
-          }
-        }
-      }
-    }
-
-    // Clean fade: only one word shown at a time, no flicker
-    function drawGreenOverlays(ctx, centers) {
-      updateFade();
-      ctx.save();
-
-      // Draw consecutive lines between cluster centers
-      if (centers.length >= 2) {
-        ctx.beginPath();
-        ctx.strokeStyle = "#FF3333";
-        ctx.lineWidth = 4;
-        for (let i = 0; i < centers.length - 1; i++) {
-          let [x1, y1] = centers[i];
-          let [x2, y2] = centers[i+1];
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-        }
-        ctx.globalAlpha = 0.8;
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-      }
-
-      for (let i = 0; i < centers.length; i++) {
-        let [x, y] = centers[i];
-        let z = clusterDepths[i];
-        let minFont = 18, maxFont = 32;
-        let fontSize = Math.round(maxFont - z * (maxFont - minFont));
-        let minAlpha = 0.5, maxAlpha = 0.9;
-        let alpha = maxAlpha - z * (maxAlpha - minAlpha);
-        let fade = clusterFadeProgress[i];
-
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        // Show only one word at a time, fade between old and new
-        let word, wordAlpha;
-        if (fade < 1) {
-          word = clusterNextWords[i];
-          wordAlpha = alpha * fade;
-        } else {
-          word = clusterWords[i];
-          wordAlpha = alpha;
-        }
-        ctx.globalAlpha = wordAlpha;
-        ctx.fillStyle = "#FF3333";
-        ctx.fillText(word, 0, 0);
-
-        ctx.restore();
-      }
-      ctx.restore();
-    }
-
-    let lastWordTrigger = Date.now();
-
-    function draw() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        if (greenCanvas.width !== video.videoWidth || greenCanvas.height !== video.videoHeight) {
-          greenCanvas.width = video.videoWidth;
-          greenCanvas.height = video.videoHeight;
-        }
-        ctx.drawImage(video, 0, 0, greenCanvas.width, greenCanvas.height);
-        let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
-        let data = frame.data;
-        let clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
-        let clusterCenters = clusters.map(getClusterCenter);
-
-        let nWords = Math.min(clusterCenters.length, MAX_WORDS);
-        clusterCenters = clusterCenters.slice(0, nWords);
-        syncClusterArrays(nWords);
-
-        if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
-          triggerNextWords();
-          lastWordTrigger = Date.now();
-        }
-        drawGreenOverlays(ctx, clusterCenters);
-      }
-      requestAnimationFrame(draw);
-    }
-
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-      .then(stream => {
-        video.srcObject = stream;
-        video.play();
-        video.addEventListener('loadedmetadata', () => {
-          greenCanvas.width = video.videoWidth;
-          greenCanvas.height = video.videoHeight;
-          draw();
-        });
-      })
-      .catch(() => {
-        alert('Camera access denied or unavailable.');
-      });
-
-    window.addEventListener('resize', () => {
-      if (video.videoWidth && video.videoHeight) {
-        greenCanvas.width = video.videoWidth;
-        greenCanvas.height = video.videoHeight;
-      }
+    // For iOS: prevent split screen and force full screen
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        greenCanvas.width = window.innerWidth;
+        greenCanvas.height = window.innerHeight;
+      }, 500);
     });
   </script>
 </body>
