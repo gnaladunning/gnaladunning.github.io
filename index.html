@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Green-Related Words AR</title>
+  <title>Markerless AR - ClipArt Overlay</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <style>
     html, body {
@@ -39,50 +39,69 @@
     const video = document.getElementById('videoElement');
     const ctx = greenCanvas.getContext('2d');
 
-    const WORD_INTERVAL = 7000;  // ms per word
-    const FADE_DURATION = 3500;  // ms for fade transition
-    const MAX_WORDS = 10;
+    const IMAGE_INTERVAL = 7000;  // ms per image
+    const FADE_DURATION = 3500;   // ms for fade transition
+    const MAX_IMAGES = 10;
 
-    // 500 words and phrases associated with "green"
-    const dictionary = [
-      "leaf", "grass", "emerald", "jade", "mint", "olive", "lime", "nature", "forest", "eco-friendly", "chlorophyll", "verdant", "fresh", "renew", "recycle", "photosynthesis", "foliage", "herb", "spring", "grove", "garden",
-      "envy", "go", "money", "growth", "organic", "vegetation", "meadow", "willow", "ivy", "bamboo", "cactus", "shamrock", "greenhouse", "energy", "renewable", "compost", "fertile", "sprout", "moss", "succulent",
-      "celery", "spinach", "broccoli", "peas", "pickle", "avocado", "kiwi", "cucumber", "pistachio", "wasabi", "leprechaun", "sustainability", "earth", "planet", "environment", "wild", "lush", "vibrant", "palm",
-      "clover", "lawn", "peridot", "sage", "turf", "camouflage", "frog", "lizard", "turtle", "snake", "leafy", "sprouting", "fertility", "rainforest", "willow", "pine", "fir", "holly", "juniper", "evergreen",
-      "rejuvenate", "bio", "natural", "vines", "stem", "algae", "fern", "sward", "shoot", "cabbage", "lettuce", "okra", "kale", "bok choy", "arugula", "mustard greens", "collard greens", "turnip greens", "swiss chard",
-      "zucchini", "green bean", "snap pea", "edamame", "chive", "dill", "basil", "cilantro", "oregano", "thyme", "parsley", "rosemary", "minty", "peppermint", "spearmint", "bay leaf", "wasabi", "matcha", "green tea",
-      "hemp", "shrub", "tree", "canopy", "grove", "jungle", "savannah", "prairie", "field", "pasture", "hillside", "valley", "mountain", "wetland", "marsh", "swamp", "pond", "lake", "river", "stream", "creek",
-      "bush", "hedge", "topiary", "planter", "seedling", "cuttings", "sod", "landscape", "terrarium", "arboretum", "flora", "green thumb", "gardener", "horticulture", "agriculture", "plantation", "crop", "harvest",
-      "spray", "dew", "mist", "shade", "canopy", "blossom", "bud", "flower", "petal", "stem", "root", "soil", "mulch", "loam", "compostable", "biodegradable", "eco", "ecology", "ecological", "friendly", "earthy",
-      "earth day", "solar", "wind", "hydro", "geothermal", "clean", "conservation", "carbon neutral", "carbon footprint", "footprint", "responsible", "preserve", "protected", "wildlife", "habitat", "sanctuary", "reserve",
-      "park", "national park", "state park", "trail", "hike", "camp", "outdoors", "picnic", "adventure", "explore", "excursion", "trek", "expedition", "voyage", "journey", "trip", "travel", "wander", "ramble", "roam",
-      "discover", "find", "seek", "search", "quest", "mission", "goal", "target", "initiative", "project", "movement", "campaign", "drive", "effort", "endeavor", "aspire", "aim", "ambition", "vision", "dream",
-      "hope", "promise", "future", "tomorrow", "progress", "advance", "forward", "upward", "rise", "ascend", "uplift", "boost", "jumpstart", "start", "begin", "commence", "embark", "launch", "activate", "motivate",
-      "inspire", "energize", "refresh", "revitalize", "renewal", "restore", "recover", "heal", "remedy", "cure", "treatment", "therapy", "wellness", "health", "fitness", "vitality", "vigorous", "strength", "robust",
-      "endurance", "stamina", "tenacity", "resilience", "durable", "long-lasting", "stable", "firm", "solid", "secure", "safe", "protected", "guarded", "shielded", "defended", "preserved", "maintained", "kept",
-      "held", "contained", "enclosed", "wrapped", "covered", "blanketed", "enveloped", "surrounded", "bordered", "framed", "outlined", "circled", "ringed", "encircled", "belted", "strapped", "bound", "tied", "linked",
-      "connected", "joined", "united", "combined", "blended", "mixed", "merged", "integrated", "fused", "amalgamated", "cohesive", "coherent", "consistent", "harmonious", "synchronized", "coordinated", "organized",
-      "systematic", "methodical", "orderly", "arranged", "aligned", "oriented", "directed", "guided", "steered", "driven", "powered", "charged", "sparked", "ignited", "fired", "stimulated", "animated", "activated",
-      "triggered", "provoked", "instigated", "initiated", "prompted", "encouraged", "supported", "assisted", "aided", "helped", "facilitated", "enabled", "empowered", "authorized", "permitted", "allowed", "granted",
-      "given", "provided", "supplied", "offered", "presented", "shown", "displayed", "revealed", "exhibited", "demonstrated", "illustrated", "depicted", "portrayed", "represented", "described", "explained", "clarified",
-      "elucidated", "defined", "identified", "named", "termed", "labeled", "tagged", "marked", "signaled", "indicated", "pointed", "highlighted", "emphasized", "accented", "stressed", "called", "referred", "denoted",
-      "signified", "symbolized", "embodied", "personified", "exemplified", "characterized", "typified", "modeled", "patterned", "shaped", "formed", "structured", "constructed", "built", "created", "produced", "made",
-      "manufactured", "fabricated", "generated", "devised", "designed", "developed", "invented", "engineered", "crafted", "fashioned", "molded", "sculpted", "carved", "assembled", "put together", "synthesized",
-      "formulated", "conceived", "originated", "began", "started", "commenced", "launched", "opened", "initiated", "inaugurated", "instituted", "established", "founded", "set up", "created", "built", "made",
-      "grown", "cultivated", "planted", "sowed", "seeded", "sprouted", "germinated", "flowered", "bloomed", "blossomed", "fruited", "ripened", "matured", "harvested", "reaped", "collected", "gathered", "picked",
-      "plucked", "snipped", "trimmed", "cut", "shorn", "pruned", "tended", "cared", "nourished", "fed", "watered", "irrigated", "drenched", "soaked", "bathed", "washed", "cleaned", "purified", "filtered",
-      "refined", "distilled", "clarified", "cleansed", "sanitized", "decontaminated", "disinfected", "sterilized", "neutralized", "balanced", "equalized", "leveled", "flattened", "smoothed", "polished", "buffed",
-      "shined", "gleamed", "glowed", "radiated", "beamed", "shimmered", "sparkled", "twinkled", "glittered", "flickered", "flashed", "blazed", "burned", "scorched", "singed", "crisped", "charred", "roasted",
-      "toasted", "browned", "goldened", "bronzed", "tanned", "sunburned", "weathered", "aged", "seasoned", "ripened", "matured", "vintage", "classic", "timeless", "enduring", "lasting", "perpetual", "constant",
-      "steady", "stable", "firm", "fixed", "secure", "anchored", "rooted", "planted", "embedded", "ingrained", "entrenched", "established", "confirmed", "validated", "ratified", "certified", "endorsed", "approved",
-      "authorized", "licensed", "sanctioned", "permitted", "allowed", "accepted", "embraced", "adopted", "welcomed", "included", "involved", "engaged", "participated", "joined", "connected", "linked", "associated",
-      "related", "pertained", "concerned", "involved", "affected", "influenced", "impacted", "touched", "reached", "contacted", "communicated", "shared", "distributed", "spread", "dispersed", "diffused", "transmitted",
-      "conveyed", "carried", "transported", "moved", "shifted", "transferred", "relocated", "sent", "delivered", "mailed", "shipped", "posted", "published", "broadcast", "aired", "televised", "streamed", "recorded",
-      "documented", "filed", "stored", "archived", "saved", "preserved", "protected", "secured", "locked", "guarded", "watched", "monitored", "tracked", "observed", "noted", "remarked", "commented", "mentioned",
-      "cited", "quoted", "referenced", "acknowledged", "recognized", "honored", "celebrated", "commended", "praised", "applauded", "cheered", "congratulated", "rewarded", "awarded", "presented", "given", "bestowed",
-      "granted", "conferred", "received", "accepted", "claimed", "won", "earned", "acquired", "obtained", "gained", "secured", "attained", "achieved", "accomplished", "completed", "finished", "fulfilled", "realized",
-      "actualized", "materialized", "manifested", "shown", "demonstrated", "proved", "verified", "confirmed", "validated", "substantiated", "corroborated", "supported", "backed", "endorsed", "championed", "advocated"
+    // Replace these URLs with your own black and white clip art images
+    const clipArtImages = [
+      "https://upload.wikimedia.org/wikipedia/commons/4/43/Circle_-_black_simple.svg",
+      "https://upload.wikimedia.org/wikipedia/commons/2/22/Simple_star_black.svg",
+      "https://upload.wikimedia.org/wikipedia/commons/6/6c/Simple_triangle_black.svg",
+      "https://upload.wikimedia.org/wikipedia/commons/5/56/Simple_square_black.svg",
+      "https://upload.wikimedia.org/wikipedia/commons/2/2b/Simple_arrow_black.svg",
+      "https://upload.wikimedia.org/wikipedia/commons/7/75/Simple_flower_black.svg",
+      "https://upload.wikimedia.org/wikipedia/commons/9/9e/Simple_tree_black.svg",
+      "https://upload.wikimedia.org/wikipedia/commons/0/08/Simple_heart_black.svg"
+      // ...add more URLs!
     ];
+
+    // Load and process images (make white transparent)
+    const loadedImages = [];
+    function loadImageWithTransparency(url, callback) {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = function() {
+        // Draw on temp canvas to manipulate pixels
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = img.width;
+        tempCanvas.height = img.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(img, 0, 0);
+
+        // Make white pixels transparent
+        const imgData = tempCtx.getImageData(0, 0, img.width, img.height);
+        for (let i = 0; i < imgData.data.length; i += 4) {
+          if (imgData.data[i] > 240 && imgData.data[i+1] > 240 && imgData.data[i+2] > 240) {
+            imgData.data[i+3] = 0; // alpha = 0
+          }
+        }
+        tempCtx.putImageData(imgData, 0, 0);
+        callback(tempCanvas);
+      };
+      img.onerror = function() {
+        callback(null);
+      };
+      img.src = url;
+    }
+
+    // Preload all images at startup
+    function preloadImages(urls, done) {
+      let loaded = 0;
+      for (let i = 0; i < urls.length; i++) {
+        loadImageWithTransparency(urls[i], (canvas) => {
+          loadedImages[i] = canvas;
+          loaded++;
+          if (loaded === urls.length) done();
+        });
+      }
+    }
+
+    function pickImage() {
+      // Pick a random loaded image canvas
+      const validImages = loadedImages.filter(Boolean);
+      return validImages[Math.floor(Math.random() * validImages.length)];
+    }
 
     function isWideRangeGreen(r, g, b) {
       return (
@@ -132,7 +151,7 @@
               minY > 0 && maxY < height - 1
             ) {
               clusters.push(cluster);
-              if (clusters.length >= MAX_WORDS) return clusters;
+              if (clusters.length >= MAX_IMAGES) return clusters;
             }
           }
         }
@@ -149,26 +168,22 @@
       return [sumX / cluster.length, sumY / cluster.length];
     }
 
-    function pickWord() {
-      return dictionary[Math.floor(Math.random() * dictionary.length)];
-    }
-
-    let clusterWords = [];
-    let clusterNextWords = [];
+    let clusterImages = [];
+    let clusterNextImages = [];
     let clusterFadeProgress = [];
     let clusterLastChange = [];
     let clusterDepths = [];
 
     function syncClusterArrays(n) {
-      if (clusterWords.length !== n) {
-        clusterWords = [];
-        clusterNextWords = [];
+      if (clusterImages.length !== n) {
+        clusterImages = [];
+        clusterNextImages = [];
         clusterFadeProgress = [];
         clusterLastChange = [];
         clusterDepths = [];
         for (let i = 0; i < n; i++) {
-          clusterWords.push(pickWord());
-          clusterNextWords.push(pickWord());
+          clusterImages.push(pickImage());
+          clusterNextImages.push(pickImage());
           clusterFadeProgress.push(1);
           clusterLastChange.push(Date.now());
           clusterDepths.push(Math.random());
@@ -176,9 +191,9 @@
       }
     }
 
-    function triggerNextWords() {
-      for (let i = 0; i < clusterWords.length; i++) {
-        clusterNextWords[i] = pickWord();
+    function triggerNextImages() {
+      for (let i = 0; i < clusterImages.length; i++) {
+        clusterNextImages[i] = pickImage();
         clusterFadeProgress[i] = 0;
         clusterLastChange[i] = Date.now();
         clusterDepths[i] = Math.random();
@@ -192,62 +207,48 @@
           let t = (now - clusterLastChange[i]) / FADE_DURATION;
           clusterFadeProgress[i] = Math.min(1, t);
           if (clusterFadeProgress[i] >= 1) {
-            clusterWords[i] = clusterNextWords[i];
+            clusterImages[i] = clusterNextImages[i];
           }
         }
       }
     }
 
-    function drawGreenOverlays(ctx, centers) {
+    function drawClipArtOverlays(ctx, centers) {
       updateFade();
       ctx.save();
-      if (centers.length >= 2) {
-        ctx.beginPath();
-        ctx.strokeStyle = "#39FF14";
-        ctx.lineWidth = 4;
-        for (let i = 0; i < centers.length - 1; i++) {
-          let [x1, y1] = centers[i];
-          let [x2, y2] = centers[i+1];
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-        }
-        ctx.globalAlpha = 0.8;
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-      }
+
       for (let i = 0; i < centers.length; i++) {
         let [x, y] = centers[i];
         let z = clusterDepths[i];
-        let minFont = 18, maxFont = 32;
-        let fontSize = Math.round(maxFont - z * (maxFont - minFont));
+        let minSize = 64, maxSize = 128;
+        let size = Math.round(maxSize - z * (maxSize - minSize));
         let minAlpha = 0.5, maxAlpha = 0.9;
         let alpha = maxAlpha - z * (maxAlpha - minAlpha);
         let fade = clusterFadeProgress[i];
 
         ctx.save();
         ctx.translate(x, y);
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
 
-        let word, wordAlpha;
+        let img, imgAlpha;
         if (fade < 1) {
-          word = clusterNextWords[i];
-          wordAlpha = alpha * fade;
+          img = clusterNextImages[i];
+          imgAlpha = alpha * fade;
         } else {
-          word = clusterWords[i];
-          wordAlpha = alpha;
+          img = clusterImages[i];
+          imgAlpha = alpha;
         }
-        ctx.globalAlpha = wordAlpha;
-        ctx.fillStyle = "#39FF14";
-        ctx.fillText(word, 0, 0);
+        if (img) {
+          ctx.globalAlpha = imgAlpha;
+          ctx.drawImage(img, -size/2, -size/2, size, size);
+          ctx.globalAlpha = 1.0;
+        }
 
         ctx.restore();
       }
       ctx.restore();
     }
 
-    let lastWordTrigger = Date.now();
+    let lastImageTrigger = Date.now();
 
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -261,32 +262,35 @@
         let clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
         let clusterCenters = clusters.map(getClusterCenter);
 
-        let nWords = Math.min(clusterCenters.length, MAX_WORDS);
-        clusterCenters = clusterCenters.slice(0, nWords);
-        syncClusterArrays(nWords);
+        let nImages = Math.min(clusterCenters.length, MAX_IMAGES);
+        clusterCenters = clusterCenters.slice(0, nImages);
+        syncClusterArrays(nImages);
 
-        if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
-          triggerNextWords();
-          lastWordTrigger = Date.now();
+        if (Date.now() - lastImageTrigger >= IMAGE_INTERVAL) {
+          triggerNextImages();
+          lastImageTrigger = Date.now();
         }
-        drawGreenOverlays(ctx, clusterCenters);
+        drawClipArtOverlays(ctx, clusterCenters);
       }
       requestAnimationFrame(draw);
     }
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-      .then(stream => {
-        video.srcObject = stream;
-        video.play();
-        video.addEventListener('loadedmetadata', () => {
-          greenCanvas.width = video.videoWidth;
-          greenCanvas.height = video.videoHeight;
-          draw();
+    // Wait for all images to load before starting camera
+    preloadImages(clipArtImages, function() {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+          video.addEventListener('loadedmetadata', () => {
+            greenCanvas.width = video.videoWidth;
+            greenCanvas.height = video.videoHeight;
+            draw();
+          });
+        })
+        .catch(() => {
+          alert('Camera access denied or unavailable.');
         });
-      })
-      .catch(() => {
-        alert('Camera access denied or unavailable.');
-      });
+    });
 
     window.addEventListener('resize', () => {
       greenCanvas.width = window.innerWidth;
@@ -302,4 +306,3 @@
   </script>
 </body>
 </html>
-
