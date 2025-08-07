@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - Reading Speed Words (No Flicker)</title>
+  <title>Green-Related Words AR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <style>
     html, body {
@@ -43,28 +43,46 @@
     const FADE_DURATION = 3500;  // ms for fade transition
     const MAX_WORDS = 10;
 
-    // Fetch a random word from an online API
-    async function pickWord() {
-      try {
-        const resp = await fetch('https://random-word-api.herokuapp.com/word?number=1');
-        const data = await resp.json();
-        return data[0];
-      } catch (e) {
-        return "word";
-      }
-    }
-
-    // Helper: returns array of random words
-    async function getRandomWords(n) {
-      const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${n}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        return data;
-      } else {
-        // fallback: fill with "word"
-        return Array(n).fill("word");
-      }
-    }
+    // 500 words and phrases associated with "green"
+    const dictionary = [
+      "leaf", "grass", "emerald", "jade", "mint", "olive", "lime", "nature", "forest", "eco-friendly", "chlorophyll", "verdant", "fresh", "renew", "recycle", "photosynthesis", "foliage", "herb", "spring", "grove", "garden",
+      "envy", "go", "money", "growth", "organic", "vegetation", "meadow", "willow", "ivy", "bamboo", "cactus", "shamrock", "greenhouse", "energy", "renewable", "compost", "fertile", "sprout", "moss", "succulent",
+      "celery", "spinach", "broccoli", "peas", "pickle", "avocado", "kiwi", "cucumber", "pistachio", "wasabi", "leprechaun", "sustainability", "earth", "planet", "environment", "wild", "lush", "vibrant", "palm",
+      "clover", "lawn", "peridot", "sage", "turf", "camouflage", "frog", "lizard", "turtle", "snake", "leafy", "sprouting", "fertility", "rainforest", "willow", "pine", "fir", "holly", "juniper", "evergreen",
+      "rejuvenate", "bio", "natural", "vines", "stem", "algae", "fern", "sward", "shoot", "cabbage", "lettuce", "okra", "kale", "bok choy", "arugula", "mustard greens", "collard greens", "turnip greens", "swiss chard",
+      "zucchini", "green bean", "snap pea", "edamame", "chive", "dill", "basil", "cilantro", "oregano", "thyme", "parsley", "rosemary", "minty", "peppermint", "spearmint", "bay leaf", "wasabi", "matcha", "green tea",
+      "hemp", "shrub", "tree", "canopy", "grove", "jungle", "savannah", "prairie", "field", "pasture", "hillside", "valley", "mountain", "wetland", "marsh", "swamp", "pond", "lake", "river", "stream", "creek",
+      "bush", "hedge", "topiary", "planter", "seedling", "cuttings", "sod", "landscape", "terrarium", "arboretum", "flora", "green thumb", "gardener", "horticulture", "agriculture", "plantation", "crop", "harvest",
+      "spray", "dew", "mist", "shade", "canopy", "blossom", "bud", "flower", "petal", "stem", "root", "soil", "mulch", "loam", "compostable", "biodegradable", "eco", "ecology", "ecological", "friendly", "earthy",
+      "earth day", "solar", "wind", "hydro", "geothermal", "clean", "conservation", "carbon neutral", "carbon footprint", "footprint", "responsible", "preserve", "protected", "wildlife", "habitat", "sanctuary", "reserve",
+      "park", "national park", "state park", "trail", "hike", "camp", "outdoors", "picnic", "adventure", "explore", "excursion", "trek", "expedition", "voyage", "journey", "trip", "travel", "wander", "ramble", "roam",
+      "discover", "find", "seek", "search", "quest", "mission", "goal", "target", "initiative", "project", "movement", "campaign", "drive", "effort", "endeavor", "aspire", "aim", "ambition", "vision", "dream",
+      "hope", "promise", "future", "tomorrow", "progress", "advance", "forward", "upward", "rise", "ascend", "uplift", "boost", "jumpstart", "start", "begin", "commence", "embark", "launch", "activate", "motivate",
+      "inspire", "energize", "refresh", "revitalize", "renewal", "restore", "recover", "heal", "remedy", "cure", "treatment", "therapy", "wellness", "health", "fitness", "vitality", "vigorous", "strength", "robust",
+      "endurance", "stamina", "tenacity", "resilience", "durable", "long-lasting", "stable", "firm", "solid", "secure", "safe", "protected", "guarded", "shielded", "defended", "preserved", "maintained", "kept",
+      "held", "contained", "enclosed", "wrapped", "covered", "blanketed", "enveloped", "surrounded", "bordered", "framed", "outlined", "circled", "ringed", "encircled", "belted", "strapped", "bound", "tied", "linked",
+      "connected", "joined", "united", "combined", "blended", "mixed", "merged", "integrated", "fused", "amalgamated", "cohesive", "coherent", "consistent", "harmonious", "synchronized", "coordinated", "organized",
+      "systematic", "methodical", "orderly", "arranged", "aligned", "oriented", "directed", "guided", "steered", "driven", "powered", "charged", "sparked", "ignited", "fired", "stimulated", "animated", "activated",
+      "triggered", "provoked", "instigated", "initiated", "prompted", "encouraged", "supported", "assisted", "aided", "helped", "facilitated", "enabled", "empowered", "authorized", "permitted", "allowed", "granted",
+      "given", "provided", "supplied", "offered", "presented", "shown", "displayed", "revealed", "exhibited", "demonstrated", "illustrated", "depicted", "portrayed", "represented", "described", "explained", "clarified",
+      "elucidated", "defined", "identified", "named", "termed", "labeled", "tagged", "marked", "signaled", "indicated", "pointed", "highlighted", "emphasized", "accented", "stressed", "called", "referred", "denoted",
+      "signified", "symbolized", "embodied", "personified", "exemplified", "characterized", "typified", "modeled", "patterned", "shaped", "formed", "structured", "constructed", "built", "created", "produced", "made",
+      "manufactured", "fabricated", "generated", "devised", "designed", "developed", "invented", "engineered", "crafted", "fashioned", "molded", "sculpted", "carved", "assembled", "put together", "synthesized",
+      "formulated", "conceived", "originated", "began", "started", "commenced", "launched", "opened", "initiated", "inaugurated", "instituted", "established", "founded", "set up", "created", "built", "made",
+      "grown", "cultivated", "planted", "sowed", "seeded", "sprouted", "germinated", "flowered", "bloomed", "blossomed", "fruited", "ripened", "matured", "harvested", "reaped", "collected", "gathered", "picked",
+      "plucked", "snipped", "trimmed", "cut", "shorn", "pruned", "tended", "cared", "nourished", "fed", "watered", "irrigated", "drenched", "soaked", "bathed", "washed", "cleaned", "purified", "filtered",
+      "refined", "distilled", "clarified", "cleansed", "sanitized", "decontaminated", "disinfected", "sterilized", "neutralized", "balanced", "equalized", "leveled", "flattened", "smoothed", "polished", "buffed",
+      "shined", "gleamed", "glowed", "radiated", "beamed", "shimmered", "sparkled", "twinkled", "glittered", "flickered", "flashed", "blazed", "burned", "scorched", "singed", "crisped", "charred", "roasted",
+      "toasted", "browned", "goldened", "bronzed", "tanned", "sunburned", "weathered", "aged", "seasoned", "ripened", "matured", "vintage", "classic", "timeless", "enduring", "lasting", "perpetual", "constant",
+      "steady", "stable", "firm", "fixed", "secure", "anchored", "rooted", "planted", "embedded", "ingrained", "entrenched", "established", "confirmed", "validated", "ratified", "certified", "endorsed", "approved",
+      "authorized", "licensed", "sanctioned", "permitted", "allowed", "accepted", "embraced", "adopted", "welcomed", "included", "involved", "engaged", "participated", "joined", "connected", "linked", "associated",
+      "related", "pertained", "concerned", "involved", "affected", "influenced", "impacted", "touched", "reached", "contacted", "communicated", "shared", "distributed", "spread", "dispersed", "diffused", "transmitted",
+      "conveyed", "carried", "transported", "moved", "shifted", "transferred", "relocated", "sent", "delivered", "mailed", "shipped", "posted", "published", "broadcast", "aired", "televised", "streamed", "recorded",
+      "documented", "filed", "stored", "archived", "saved", "preserved", "protected", "secured", "locked", "guarded", "watched", "monitored", "tracked", "observed", "noted", "remarked", "commented", "mentioned",
+      "cited", "quoted", "referenced", "acknowledged", "recognized", "honored", "celebrated", "commended", "praised", "applauded", "cheered", "congratulated", "rewarded", "awarded", "presented", "given", "bestowed",
+      "granted", "conferred", "received", "accepted", "claimed", "won", "earned", "acquired", "obtained", "gained", "secured", "attained", "achieved", "accomplished", "completed", "finished", "fulfilled", "realized",
+      "actualized", "materialized", "manifested", "shown", "demonstrated", "proved", "verified", "confirmed", "validated", "substantiated", "corroborated", "supported", "backed", "endorsed", "championed", "advocated"
+    ];
 
     function isWideRangeGreen(r, g, b) {
       return (
@@ -131,28 +149,40 @@
       return [sumX / cluster.length, sumY / cluster.length];
     }
 
+    function pickWord() {
+      return dictionary[Math.floor(Math.random() * dictionary.length)];
+    }
+
     let clusterWords = [];
     let clusterNextWords = [];
     let clusterFadeProgress = [];
     let clusterLastChange = [];
     let clusterDepths = [];
 
-    // Sync arrays and fetch random words
-    async function syncClusterArrays(n) {
+    function syncClusterArrays(n) {
       if (clusterWords.length !== n) {
-        clusterWords = await getRandomWords(n);
-        clusterNextWords = await getRandomWords(n);
-        clusterFadeProgress = Array(n).fill(1);
-        clusterLastChange = Array(n).fill(Date.now());
-        clusterDepths = Array.from({length: n}, () => Math.random());
+        clusterWords = [];
+        clusterNextWords = [];
+        clusterFadeProgress = [];
+        clusterLastChange = [];
+        clusterDepths = [];
+        for (let i = 0; i < n; i++) {
+          clusterWords.push(pickWord());
+          clusterNextWords.push(pickWord());
+          clusterFadeProgress.push(1);
+          clusterLastChange.push(Date.now());
+          clusterDepths.push(Math.random());
+        }
       }
     }
 
-    async function triggerNextWords() {
-      clusterNextWords = await getRandomWords(clusterWords.length);
-      clusterFadeProgress = Array(clusterWords.length).fill(0);
-      clusterLastChange = Array(clusterWords.length).fill(Date.now());
-      clusterDepths = Array.from({length: clusterWords.length}, () => Math.random());
+    function triggerNextWords() {
+      for (let i = 0; i < clusterWords.length; i++) {
+        clusterNextWords[i] = pickWord();
+        clusterFadeProgress[i] = 0;
+        clusterLastChange[i] = Date.now();
+        clusterDepths[i] = Math.random();
+      }
     }
 
     function updateFade() {
@@ -173,7 +203,7 @@
       ctx.save();
       if (centers.length >= 2) {
         ctx.beginPath();
-        ctx.strokeStyle = "#FF3333";
+        ctx.strokeStyle = "#39FF14";
         ctx.lineWidth = 4;
         for (let i = 0; i < centers.length - 1; i++) {
           let [x1, y1] = centers[i];
@@ -209,7 +239,7 @@
           wordAlpha = alpha;
         }
         ctx.globalAlpha = wordAlpha;
-        ctx.fillStyle = "#FF3333";
+        ctx.fillStyle = "#39FF14";
         ctx.fillText(word, 0, 0);
 
         ctx.restore();
@@ -219,7 +249,7 @@
 
     let lastWordTrigger = Date.now();
 
-    async function draw() {
+    function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         if (greenCanvas.width !== video.videoWidth || greenCanvas.height !== video.videoHeight) {
           greenCanvas.width = video.videoWidth;
@@ -233,10 +263,10 @@
 
         let nWords = Math.min(clusterCenters.length, MAX_WORDS);
         clusterCenters = clusterCenters.slice(0, nWords);
-        await syncClusterArrays(nWords);
+        syncClusterArrays(nWords);
 
         if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
-          await triggerNextWords();
+          triggerNextWords();
           lastWordTrigger = Date.now();
         }
         drawGreenOverlays(ctx, clusterCenters);
