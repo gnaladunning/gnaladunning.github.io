@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Markerless AR - ClipArt Overlay</title>
+  <title>Markerless AR - Web Scraped ClipArt Overlay</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <style>
     html, body {
@@ -42,22 +42,15 @@
     const IMAGE_INTERVAL = 7000;  // ms per image
     const FADE_DURATION = 3500;   // ms for fade transition
     const MAX_IMAGES = 10;
+    const IMAGE_SIZE = 96;
 
-    // Replace these URLs with your own black and white clip art images
-    const clipArtImages = [
-      "https://upload.wikimedia.org/wikipedia/commons/4/43/Circle_-_black_simple.svg",
-      "https://upload.wikimedia.org/wikipedia/commons/2/22/Simple_star_black.svg",
-      "https://upload.wikimedia.org/wikipedia/commons/6/6c/Simple_triangle_black.svg",
-      "https://upload.wikimedia.org/wikipedia/commons/5/56/Simple_square_black.svg",
-      "https://upload.wikimedia.org/wikipedia/commons/2/2b/Simple_arrow_black.svg",
-      "https://upload.wikimedia.org/wikipedia/commons/7/75/Simple_flower_black.svg",
-      "https://upload.wikimedia.org/wikipedia/commons/9/9e/Simple_tree_black.svg",
-      "https://upload.wikimedia.org/wikipedia/commons/0/08/Simple_heart_black.svg"
-      // ...add more URLs!
-    ];
+    // Get random image URLs from Unsplash Source API ("black and white clip art")
+    function getRandomClipArtUrl() {
+      // This returns a random image for the keyword; you can change the query for different results
+      return `https://source.unsplash.com/random/${IMAGE_SIZE}x${IMAGE_SIZE}/?black-and-white,clip-art`;
+    }
 
     // Load and process images (make white transparent)
-    const loadedImages = [];
     function loadImageWithTransparency(url, callback) {
       const img = new Image();
       img.crossOrigin = "Anonymous";
@@ -82,25 +75,20 @@
       img.onerror = function() {
         callback(null);
       };
-      img.src = url;
+      img.src = url + `?sig=${Math.floor(Math.random()*1000000)}`; // Ensure randomness
     }
 
-    // Preload all images at startup
-    function preloadImages(urls, done) {
+    // Preload random images
+    function preloadRandomImages(count, done) {
       let loaded = 0;
-      for (let i = 0; i < urls.length; i++) {
-        loadImageWithTransparency(urls[i], (canvas) => {
-          loadedImages[i] = canvas;
+      const images = [];
+      for (let i = 0; i < count; i++) {
+        loadImageWithTransparency(getRandomClipArtUrl(), (canvas) => {
+          images[i] = canvas;
           loaded++;
-          if (loaded === urls.length) done();
+          if (loaded === count) done(images);
         });
       }
-    }
-
-    function pickImage() {
-      // Pick a random loaded image canvas
-      const validImages = loadedImages.filter(Boolean);
-      return validImages[Math.floor(Math.random() * validImages.length)];
     }
 
     function isWideRangeGreen(r, g, b) {
@@ -173,6 +161,12 @@
     let clusterFadeProgress = [];
     let clusterLastChange = [];
     let clusterDepths = [];
+    let loadedImages = [];
+
+    function pickImage() {
+      const validImages = loadedImages.filter(Boolean);
+      return validImages[Math.floor(Math.random() * validImages.length)];
+    }
 
     function syncClusterArrays(n) {
       if (clusterImages.length !== n) {
@@ -216,7 +210,6 @@
     function drawClipArtOverlays(ctx, centers) {
       updateFade();
       ctx.save();
-
       for (let i = 0; i < centers.length; i++) {
         let [x, y] = centers[i];
         let z = clusterDepths[i];
@@ -242,7 +235,6 @@
           ctx.drawImage(img, -size/2, -size/2, size, size);
           ctx.globalAlpha = 1.0;
         }
-
         ctx.restore();
       }
       ctx.restore();
@@ -267,16 +259,21 @@
         syncClusterArrays(nImages);
 
         if (Date.now() - lastImageTrigger >= IMAGE_INTERVAL) {
-          triggerNextImages();
-          lastImageTrigger = Date.now();
+          // Fetch new random images for next round
+          preloadRandomImages(MAX_IMAGES, function(images) {
+            loadedImages = images;
+            triggerNextImages();
+            lastImageTrigger = Date.now();
+          });
         }
         drawClipArtOverlays(ctx, clusterCenters);
       }
       requestAnimationFrame(draw);
     }
 
-    // Wait for all images to load before starting camera
-    preloadImages(clipArtImages, function() {
+    // Preload images on startup and start camera once loaded
+    preloadRandomImages(MAX_IMAGES, function(images) {
+      loadedImages = images;
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
         .then(stream => {
           video.srcObject = stream;
