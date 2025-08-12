@@ -39,11 +39,6 @@
     const video = document.getElementById('videoElement');
     const ctx = greenCanvas.getContext('2d');
 
-    // Smoothing options
-    const LINE_SMOOTHNESS = 0.3;  // [0, 1], higher = more smooth
-    const TRAIL_LENGTH = 12;      // how many frames to average for trails
-    let clusterTrails = [];
-
     const WORD_INTERVAL = 7000;  // ms per word
     const FADE_DURATION = 3500;  // ms for fade transition
     const MAX_WORDS = 10;
@@ -65,11 +60,12 @@
     }
 
     function clusterGreenPixels(data, width, height) {
+      // Identify clusters across the entire video feed
       const visited = new Uint8Array(width * height);
       const clusters = [];
       const pixelIndex = (x, y) => (y * width + x) * 4;
-      for (let y = 0; y < height; y += 1) {
-        for (let x = 0; x < width; x += 1) {
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
           const idx = y * width + x;
           if (visited[idx]) continue;
           const i = pixelIndex(x, y);
@@ -98,6 +94,7 @@
                 }
               }
             }
+            // Accept clusters that are visible and large enough
             if (
               cluster.length > 30 &&
               minX > 0 && maxX < width - 1 &&
@@ -121,32 +118,8 @@
       return [sumX / cluster.length, sumY / cluster.length];
     }
 
-    function smoothCenters(currentCenters) {
-      // Use previous N frames to average center positions for smoother lines
-      if (!clusterTrails.length || clusterTrails.length !== currentCenters.length) {
-        clusterTrails = currentCenters.map(center => [center]);
-        return currentCenters;
-      }
-      for (let i = 0; i < currentCenters.length; i++) {
-        let trail = clusterTrails[i] || [];
-        trail.push(currentCenters[i]);
-        if (trail.length > TRAIL_LENGTH) trail.shift();
-        clusterTrails[i] = trail;
-      }
-      // Weighted average
-      return clusterTrails.map(trail => {
-        let x = 0, y = 0;
-        let total = trail.length;
-        for (let pt of trail) {
-          x += pt[0];
-          y += pt[1];
-        }
-        return [x / total, y / total];
-      });
-    }
-
-    function getSplinePoints(points, tension = LINE_SMOOTHNESS, numOfSeg = 32) {
-      // Catmull-Rom Spline for smooth lines (returns array of interpolated [x,y] points)
+    // Catmull-Rom spline for smooth curves between clusters
+    function getSplinePoints(points, tension = 0.5, numOfSeg = 24) {
       if (points.length < 2) return points;
       let result = [];
       for (let i = 0; i < points.length - 1; i++) {
@@ -165,7 +138,6 @@
     }
 
     function catmullRom(p0, p1, p2, p3, t, tension) {
-      // Tension = 0.5 is Catmull-Rom, 0 is linear
       let v0 = (p2 - p0) * tension;
       let v1 = (p3 - p1) * tension;
       return (2 * p1 - 2 * p2 + v0 + v1) * t * t * t
@@ -226,14 +198,14 @@
     function drawGreenOverlays(ctx, centers) {
       updateFade();
       ctx.save();
-      // Smooth line between clusters using spline
+      // Draw curved lines between clusters using spline
       if (centers.length >= 2) {
-        let spline = getSplinePoints(centers, LINE_SMOOTHNESS, 24);
+        let spline = getSplinePoints(centers, 0.5, 24);
         ctx.beginPath();
         ctx.strokeStyle = "#39FF14";
         ctx.lineWidth = 4;
         ctx.shadowColor = "#39FF14";
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 20;
         for (let i = 0; i < spline.length - 1; i++) {
           let [x1, y1] = spline[i];
           let [x2, y2] = spline[i + 1];
@@ -244,7 +216,7 @@
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
-      // Words at cluster centers (with gentle fade and shadow)
+      // Words at cluster centers
       for (let i = 0; i < centers.length; i++) {
         let [x, y] = centers[i];
         let z = clusterDepths[i];
@@ -287,7 +259,6 @@
           greenCanvas.width = video.videoWidth;
           greenCanvas.height = video.videoHeight;
         }
-        // Draw background video with mild blur for smoother look
         ctx.filter = "blur(1px) brightness(1.08)";
         ctx.drawImage(video, 0, 0, greenCanvas.width, greenCanvas.height);
         ctx.filter = "none";
@@ -300,14 +271,11 @@
         clusterCenters = clusterCenters.slice(0, nWords);
         syncClusterArrays(nWords);
 
-        // Smooth centers for line drawing
-        let smoothClusterCenters = smoothCenters(clusterCenters);
-
         if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
           triggerNextWords();
           lastWordTrigger = Date.now();
         }
-        drawGreenOverlays(ctx, smoothClusterCenters);
+        drawGreenOverlays(ctx, clusterCenters);
       }
       requestAnimationFrame(draw);
     }
