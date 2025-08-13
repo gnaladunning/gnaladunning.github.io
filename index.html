@@ -39,28 +39,48 @@
     const video = document.getElementById('videoElement');
     const ctx = greenCanvas.getContext('2d');
 
+    // Increase sample density and spread
     const WORD_INTERVAL = 7000;  // ms per word
     const FADE_DURATION = 3500;  // ms for fade transition
-    const MAX_WORDS = 10;
+    const MAX_WORDS = 30;  // More overlays for a field of text
 
-    // (Dictionary truncated for brevity)
+    // Sample dictionary (add more as needed)
     const dictionary = [
-      "leaf", "grass", "emerald", "jade", "mint", "olive", "lime", "nature", "forest", "eco-friendly", "chlorophyll", "verdant", "fresh", "renew", "recycle", "photosynthesis", "foliage", "herb", "spring",
+      "leaf", "grass", "emerald", "jade", "mint", "olive", "lime", "nature", "forest", "eco", "chlorophyll", "verdant", "fresh", "renew", "recycle", "photosynthesis", "foliage", "herb", "spring",
       "envy", "go", "money", "growth", "organic", "vegetation", "meadow", "willow", "ivy", "bamboo", "cactus", "shamrock", "greenhouse", "energy", "renewable", "compost", "fertile", "sprout", "moss",
       "celery", "spinach", "broccoli", "peas", "pickle", "avocado", "kiwi", "cucumber", "pistachio", "wasabi", "leprechaun", "sustainability", "earth", "planet", "environment", "wild", "lush", "vibrant"
       // ... (add more as needed)
     ];
 
-    function isWideRangeGreen(r, g, b) {
-      return (
-        g > 60 &&
-        g > r + 10 && g > b + 10 &&
-        r < 200 && b < 200
-      );
+    // Expanded color sampling: allow more greens, yellows, cyans, and bright colors
+    function isWideRangeColor(r, g, b) {
+      // HSL conversion for better color filtering
+      r /= 255; g /= 255; b /= 255;
+      let max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+      if (max === min) {
+        h = s = 0;
+      } else {
+        let d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
+          case g: h = ((b - r) / d + 2); break;
+          case b: h = ((r - g) / d + 4); break;
+        }
+        h /= 6;
+      }
+      // Accept green, yellow-green, cyan, and other bright colors
+      const greenish = h >= 0.2 && h <= 0.45; // 0.2~0.45 is roughly 72~162deg (green/cyan)
+      const yellowish = h >= 0.12 && h < 0.2; // 0.12~0.2 is ~43~72deg (yellow-green)
+      const cyanish = h > 0.45 && h < 0.55; // ~162~198deg (cyan)
+      const bright = l > 0.28; // allow moderate brightness
+      const colorful = s > 0.35; // saturated colors only
+      return (greenish || yellowish || cyanish) && bright && colorful;
     }
 
-    function clusterGreenPixels(data, width, height) {
-      // Identify clusters across the entire video feed
+    // Cluster detection across the whole feed
+    function clusterColorPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
       const pixelIndex = (x, y) => (y * width + x) * 4;
@@ -69,7 +89,7 @@
           const idx = y * width + x;
           if (visited[idx]) continue;
           const i = pixelIndex(x, y);
-          if (isWideRangeGreen(data[i], data[i + 1], data[i + 2])) {
+          if (isWideRangeColor(data[i], data[i + 1], data[i + 2])) {
             const queue = [[x, y]];
             const cluster = [];
             let minX = x, maxX = x, minY = y, maxY = y;
@@ -86,7 +106,7 @@
                   const nidx = ny * width + nx;
                   if (!visited[nidx]) {
                     const ni = pixelIndex(nx, ny);
-                    if (isWideRangeGreen(data[ni], data[ni + 1], data[ni + 2])) {
+                    if (isWideRangeColor(data[ni], data[ni + 1], data[ni + 2])) {
                       queue.push([nx, ny]);
                       visited[nidx] = 1;
                     }
@@ -94,9 +114,8 @@
                 }
               }
             }
-            // Accept clusters that are visible and large enough
             if (
-              cluster.length > 30 &&
+              cluster.length > 18 &&
               minX > 0 && maxX < width - 1 &&
               minY > 0 && maxY < height - 1
             ) {
@@ -116,34 +135,6 @@
         sumY += y;
       }
       return [sumX / cluster.length, sumY / cluster.length];
-    }
-
-    // Catmull-Rom spline for smooth curves between clusters
-    function getSplinePoints(points, tension = 0.5, numOfSeg = 24) {
-      if (points.length < 2) return points;
-      let result = [];
-      for (let i = 0; i < points.length - 1; i++) {
-        let p0 = points[i === 0 ? i : i - 1];
-        let p1 = points[i];
-        let p2 = points[i + 1];
-        let p3 = points[i + 2 < points.length ? i + 2 : i + 1];
-        for (let t = 0; t < numOfSeg; t++) {
-          let st = t / numOfSeg;
-          let x = catmullRom(p0[0], p1[0], p2[0], p3[0], st, tension);
-          let y = catmullRom(p0[1], p1[1], p2[1], p3[1], st, tension);
-          result.push([x, y]);
-        }
-      }
-      return result;
-    }
-
-    function catmullRom(p0, p1, p2, p3, t, tension) {
-      let v0 = (p2 - p0) * tension;
-      let v1 = (p3 - p1) * tension;
-      return (2 * p1 - 2 * p2 + v0 + v1) * t * t * t
-           + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t * t
-           + v0 * t
-           + p1;
     }
 
     function pickWord() {
@@ -195,34 +186,61 @@
       }
     }
 
-    function drawGreenOverlays(ctx, centers) {
+    // Spline for smooth curves
+    function getSplinePoints(points, tension = 0.5, numOfSeg = 18) {
+      if (points.length < 2) return points;
+      let result = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        let p0 = points[i === 0 ? i : i - 1];
+        let p1 = points[i];
+        let p2 = points[i + 1];
+        let p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+        for (let t = 0; t < numOfSeg; t++) {
+          let st = t / numOfSeg;
+          let x = catmullRom(p0[0], p1[0], p2[0], p3[0], st, tension);
+          let y = catmullRom(p0[1], p1[1], p2[1], p3[1], st, tension);
+          result.push([x, y]);
+        }
+      }
+      return result;
+    }
+
+    function catmullRom(p0, p1, p2, p3, t, tension) {
+      let v0 = (p2 - p0) * tension;
+      let v1 = (p3 - p1) * tension;
+      return (2 * p1 - 2 * p2 + v0 + v1) * t * t * t
+           + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t * t
+           + v0 * t
+           + p1;
+    }
+
+    function drawColorOverlays(ctx, centers) {
       updateFade();
       ctx.save();
-      // Draw curved lines between clusters using spline
       if (centers.length >= 2) {
-        let spline = getSplinePoints(centers, 0.5, 24);
+        let spline = getSplinePoints(centers, 0.5, 18);
         ctx.beginPath();
         ctx.strokeStyle = "#39FF14";
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 2.5;
         ctx.shadowColor = "#39FF14";
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = 16;
         for (let i = 0; i < spline.length - 1; i++) {
           let [x1, y1] = spline[i];
           let [x2, y2] = spline[i + 1];
           ctx.moveTo(x1, y1);
           ctx.lineTo(x2, y2);
         }
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = 0.45;
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
-      // Words at cluster centers
+      // Words at cluster centers, distributed across screen
       for (let i = 0; i < centers.length; i++) {
         let [x, y] = centers[i];
         let z = clusterDepths[i];
-        let minFont = 18, maxFont = 32;
+        let minFont = 16, maxFont = 30;
         let fontSize = Math.round(maxFont - z * (maxFont - minFont));
-        let minAlpha = 0.5, maxAlpha = 0.9;
+        let minAlpha = 0.48, maxAlpha = 0.82;
         let alpha = maxAlpha - z * (maxAlpha - minAlpha);
         let fade = clusterFadeProgress[i];
 
@@ -232,7 +250,7 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.shadowColor = "#39FF14";
-        ctx.shadowBlur = 28;
+        ctx.shadowBlur = 18;
 
         let word, wordAlpha;
         if (fade < 1) {
@@ -259,12 +277,13 @@
           greenCanvas.width = video.videoWidth;
           greenCanvas.height = video.videoHeight;
         }
-        ctx.filter = "blur(1px) brightness(1.08)";
+        // Stronger blur, brightness, and contrast for sampling
+        ctx.filter = "blur(1.5px) brightness(1.18) contrast(1.18)";
         ctx.drawImage(video, 0, 0, greenCanvas.width, greenCanvas.height);
         ctx.filter = "none";
         let frame = ctx.getImageData(0, 0, greenCanvas.width, greenCanvas.height);
         let data = frame.data;
-        let clusters = clusterGreenPixels(data, greenCanvas.width, greenCanvas.height);
+        let clusters = clusterColorPixels(data, greenCanvas.width, greenCanvas.height);
         let clusterCenters = clusters.map(getClusterCenter);
 
         let nWords = Math.min(clusterCenters.length, MAX_WORDS);
@@ -275,7 +294,7 @@
           triggerNextWords();
           lastWordTrigger = Date.now();
         }
-        drawGreenOverlays(ctx, clusterCenters);
+        drawColorOverlays(ctx, clusterCenters);
       }
       requestAnimationFrame(draw);
     }
