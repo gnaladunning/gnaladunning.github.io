@@ -41,9 +41,9 @@
     const ctx = politicalCanvas.getContext('2d');
 
     // AR Word/Cluster settings
-    const WORD_INTERVAL = 7000;  // ms per word
-    const FADE_DURATION = 3500;  // ms for fade transition
-    const MAX_WORDS = 30;
+    const WORD_INTERVAL = 11000;  // ms per word (slower for readability)
+    const FADE_DURATION = 7000;   // ms for fade transition (slower for readability)
+    const MAX_CLUSTERS = 10;      // Limit clusters to 10
 
     // Words associated with political disenfranchisement
     const disenfranchisementWords = [
@@ -123,7 +123,7 @@
               minY > 0 && maxY < height - 1
             ) {
               clusters.push(cluster);
-              if (clusters.length >= MAX_WORDS) return clusters;
+              if (clusters.length >= MAX_CLUSTERS) return clusters; // Limit to 10 clusters
             }
           }
         }
@@ -312,7 +312,7 @@
         let clusterCenters = clusters.map(getClusterCenter);
         let clusterAreaSizes = clusters.map(getClusterSize);
 
-        let nWords = Math.min(clusterCenters.length, MAX_WORDS);
+        let nWords = Math.min(clusterCenters.length, MAX_CLUSTERS); // Limit to 10 clusters
         clusterCenters = clusterCenters.slice(0, nWords);
         clusterAreaSizes = clusterAreaSizes.slice(0, nWords);
 
