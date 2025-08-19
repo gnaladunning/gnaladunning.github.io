@@ -39,10 +39,12 @@
     const video = document.getElementById('videoElement');
     const ctx = politicalCanvas.getContext('2d');
 
-    // AR Word/Cluster settings
-    const WORD_INTERVAL = 11000;  // ms per word (slower for readability)
-    const FADE_DURATION = 7000;   // ms for fade transition (slower for readability)
-    const MAX_CLUSTERS = 5;       // Limit clusters to 5
+    // AR Word/Cluster settings (slower for smooth transitions)
+    const WORD_INTERVAL = 18000;  // ms per word (slower for readability)
+    const FADE_DURATION = 12000;  // ms for fade transition (slower for readability)
+    const APPEAR_DURATION = 3000; // ms for new cluster/word fade-in
+    const DISAPPEAR_DURATION = 3000; // ms for cluster/word fade-out
+    const MAX_CLUSTERS = 5;
 
     // Narrative elements for disenfranchisement
     const disenfranchisementWords = [
@@ -166,55 +168,113 @@
       return disenfranchisementWords[Math.floor(Math.random() * disenfranchisementWords.length)];
     }
 
-    let clusterWords = [];
-    let clusterNextWords = [];
-    let clusterFadeProgress = [];
-    let clusterLastChange = [];
-    let clusterDepths = [];
-    let clusterSizes = [];
+    // Cluster management with fade-in/fade-out
+    let clusterStates = [];
+    let prevClusterCenters = [];
 
-    function syncClusterArrays(n, sizes) {
-      if (clusterWords.length !== n) {
-        clusterWords = [];
-        clusterNextWords = [];
-        clusterFadeProgress = [];
-        clusterLastChange = [];
-        clusterDepths = [];
-        clusterSizes = [];
-        for (let i = 0; i < n; i++) {
-          clusterWords.push(pickWord());
-          clusterNextWords.push(pickWord());
-          clusterFadeProgress.push(1);
-          clusterLastChange.push(Date.now());
-          clusterDepths.push(Math.random());
-          clusterSizes.push(sizes[i]);
-        }
-      } else {
-        for (let i = 0; i < n; i++) {
-          clusterSizes[i] = sizes[i];
-        }
-      }
-    }
-
-    function triggerNextWords() {
-      for (let i = 0; i < clusterWords.length; i++) {
-        clusterNextWords[i] = pickWord();
-        clusterFadeProgress[i] = 0;
-        clusterLastChange[i] = Date.now();
-        clusterDepths[i] = Math.random();
-      }
-    }
-
-    function updateFade() {
-      const now = Date.now();
-      for (let i = 0; i < clusterFadeProgress.length; i++) {
-        if (clusterFadeProgress[i] < 1) {
-          let t = (now - clusterLastChange[i]) / FADE_DURATION;
-          clusterFadeProgress[i] = Math.min(1, t);
-          if (clusterFadeProgress[i] >= 1) {
-            clusterWords[i] = clusterNextWords[i];
+    function updateClusters(currentCenters, currentSizes) {
+      // Match clusters by proximity
+      let newStates = [];
+      let matched = new Set();
+      for (let i = 0; i < currentCenters.length; i++) {
+        let center = currentCenters[i];
+        let size = currentSizes[i];
+        let foundIdx = -1, minDist = Infinity;
+        for (let j = 0; j < clusterStates.length; j++) {
+          let prev = clusterStates[j];
+          if (prev.status === "disappearing") continue;
+          let dist = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
+          if (dist < 60 && dist < minDist && !matched.has(j)) {
+            minDist = dist;
+            foundIdx = j;
           }
         }
+        if (foundIdx !== -1) {
+          // Existing cluster: update center & size
+          let prev = clusterStates[foundIdx];
+          newStates.push({
+            ...prev,
+            center,
+            size,
+            appearStart: prev.appearStart,
+            status: "visible",
+            disappearStart: null,
+            lastUpdate: Date.now()
+          });
+          matched.add(foundIdx);
+        } else {
+          // New cluster: fade in
+          newStates.push({
+            center,
+            size,
+            word: pickWord(),
+            nextWord: pickWord(),
+            wordFade: 1,
+            wordLastChange: Date.now(),
+            appearStart: Date.now(),
+            status: "appearing",
+            disappearStart: null,
+            depth: Math.random(),
+            lastUpdate: Date.now()
+          });
+        }
+      }
+
+      // Existing clusters not matched: fade out
+      for (let j = 0; j < clusterStates.length; j++) {
+        if (matched.has(j)) continue;
+        let prev = clusterStates[j];
+        if (prev.status === "disappearing" && prev.disappearStart && Date.now() - prev.disappearStart < DISAPPEAR_DURATION) {
+          // Continue fading out
+          newStates.push(prev);
+        } else if (prev.status !== "disappearing") {
+          // Start fade out
+          newStates.push({
+            ...prev,
+            status: "disappearing",
+            disappearStart: Date.now()
+          });
+        }
+      }
+      // Limit to MAX_CLUSTERS
+      clusterStates = newStates.slice(0, MAX_CLUSTERS);
+    }
+
+    function updateWordTransitions() {
+      const now = Date.now();
+      for (let cluster of clusterStates) {
+        // Fade-in new cluster
+        if (cluster.status === "appearing" && cluster.appearStart) {
+          let t = (now - cluster.appearStart) / APPEAR_DURATION;
+          cluster.appearProgress = Math.min(1, t);
+          if (cluster.appearProgress >= 1) {
+            cluster.status = "visible";
+            cluster.appearStart = null;
+            cluster.appearProgress = 1;
+          }
+        }
+        // Fade-out disappearing cluster
+        if (cluster.status === "disappearing" && cluster.disappearStart) {
+          let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
+          cluster.disappearProgress = Math.min(1, t);
+        }
+        // Word fade (for changing words)
+        if (cluster.wordFade < 1) {
+          let t = (now - cluster.wordLastChange) / FADE_DURATION;
+          cluster.wordFade = Math.min(1, t);
+          if (cluster.wordFade >= 1) {
+            cluster.word = cluster.nextWord;
+          }
+        }
+      }
+    }
+
+    function triggerWordChanges() {
+      for (let cluster of clusterStates) {
+        cluster.nextWord = pickWord();
+        cluster.wordFade = 0;
+        cluster.wordLastChange = Date.now();
+        cluster.depth = Math.random();
       }
     }
 
@@ -246,9 +306,11 @@
            + p1;
     }
 
-    function drawColorOverlays(ctx, centers, sizes) {
-      updateFade();
+    function drawColorOverlays(ctx, clusters) {
+      updateWordTransitions();
       ctx.save();
+      // Draw smooth spline if enough clusters
+      let centers = clusters.filter(c => c.status !== "disappearing" || (c.status === "disappearing" && c.disappearProgress < 1)).map(c => c.center);
       if (centers.length >= 2) {
         let spline = getSplinePoints(centers, 0.5, 18);
         ctx.beginPath();
@@ -262,23 +324,48 @@
           ctx.moveTo(x1, y1);
           ctx.lineTo(x2, y2);
         }
-        ctx.globalAlpha = 0.45;
+        // Fade lines based on min cluster alpha (to avoid flicker)
+        let minAlpha = 1.0;
+        for (let c of clusters) {
+          let alpha = 1.0;
+          if (c.status === "appearing") alpha = c.appearProgress || 0;
+          if (c.status === "disappearing") alpha = 1 - (c.disappearProgress || 0);
+          minAlpha = Math.min(minAlpha, alpha);
+        }
+        ctx.globalAlpha = 0.38 + minAlpha * 0.3;
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
       // Words at cluster centers, distributed and scaled by size (proximity)
-      for (let i = 0; i < centers.length; i++) {
-        let [x, y] = centers[i];
-        let z = clusterDepths[i];
-        let size = sizes[i];
-        // Camera proximity proxy: larger cluster area == closer
+      for (let i = 0; i < clusters.length; i++) {
+        let cluster = clusters[i];
+        let [x, y] = cluster.center;
+        let z = cluster.depth || 0;
+        let size = cluster.size;
         let minFont = 18, maxFont = 80;
-        // Normalize area based on canvas size for scaling, clamp to reasonable range
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
         let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
         let minAlpha = 0.52, maxAlpha = 0.88;
         let alpha = maxAlpha - z * (maxAlpha - minAlpha);
-        let fade = clusterFadeProgress[i];
+
+        // Fade-in or fade-out for clusters
+        let appearAlpha = 1.0;
+        if (cluster.status === "appearing") appearAlpha = cluster.appearProgress || 0;
+        if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
+        alpha *= appearAlpha;
+
+        // Fade word transitions
+        let word, wordAlpha;
+        if (cluster.wordFade < 1) {
+          word = cluster.nextWord;
+          wordAlpha = alpha * cluster.wordFade * 0.85 + 0.15 * alpha;
+        } else {
+          word = cluster.word;
+          wordAlpha = alpha;
+        }
+
+        // Prevent flicker by smoothly fading in/out and keeping alpha above a minimum threshold
+        wordAlpha = Math.max(0.14, wordAlpha);
 
         ctx.save();
         ctx.translate(x, y);
@@ -288,14 +375,6 @@
         ctx.shadowColor = "#FF4141";
         ctx.shadowBlur = 20;
 
-        let word, wordAlpha;
-        if (fade < 1) {
-          word = clusterNextWords[i];
-          wordAlpha = alpha * fade;
-        } else {
-          word = clusterWords[i];
-          wordAlpha = alpha;
-        }
         ctx.globalAlpha = wordAlpha;
         ctx.fillStyle = "#FF4141";
         ctx.fillText(word, 0, 0);
@@ -306,8 +385,6 @@
     }
 
     let lastWordTrigger = Date.now();
-    let prevCenters = [];
-    let prevSizes = [];
 
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -315,7 +392,6 @@
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
         }
-        // Blur, brightness, and contrast for sampling
         ctx.filter = "blur(1.5px) brightness(1.18) contrast(1.18)";
         ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
         ctx.filter = "none";
@@ -325,40 +401,37 @@
         let clusterCenters = clusters.map(getClusterCenter);
         let clusterAreaSizes = clusters.map(getClusterSize);
 
-        let nWords = Math.min(clusterCenters.length, MAX_CLUSTERS); // Limit to 5 clusters
-        clusterCenters = clusterCenters.slice(0, nWords);
-        clusterAreaSizes = clusterAreaSizes.slice(0, nWords);
+        // Cluster fade-in/fade-out management
+        updateClusters(clusterCenters, clusterAreaSizes);
 
-        // Look for new clusters as old clusters move out of view
-        syncClusterArrays(nWords, clusterAreaSizes);
-
-        // If clusters have changed or moved out, update instantly
+        // If clusters have changed or moved out, update instantly (no flicker, slow transition)
         let centersChanged = false;
-        if (prevCenters.length !== clusterCenters.length) {
+        if (prevClusterCenters.length !== clusterCenters.length) {
           centersChanged = true;
         } else {
           for (let i = 0; i < clusterCenters.length; i++) {
             if (
-              Math.abs(clusterCenters[i][0] - (prevCenters[i]?.[0] || 0)) > 80 ||
-              Math.abs(clusterCenters[i][1] - (prevCenters[i]?.[1] || 0)) > 80
+              Math.abs(clusterCenters[i][0] - (prevClusterCenters[i]?.[0] || 0)) > 80 ||
+              Math.abs(clusterCenters[i][1] - (prevClusterCenters[i]?.[1] || 0)) > 80
             ) {
               centersChanged = true;
               break;
             }
           }
         }
+        prevClusterCenters = clusterCenters.slice();
+
         if (centersChanged) {
-          triggerNextWords();
-          lastWordTrigger = Date.now();
+          // Instead of instant word change, let clusters fade in/out
+          // Only trigger next words for clusters that remain visible
         }
-        prevCenters = clusterCenters.slice();
-        prevSizes = clusterAreaSizes.slice();
 
         if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
-          triggerNextWords();
+          triggerWordChanges();
           lastWordTrigger = Date.now();
         }
-        drawColorOverlays(ctx, clusterCenters, clusterAreaSizes);
+
+        drawColorOverlays(ctx, clusterStates);
       }
       requestAnimationFrame(draw);
     }
