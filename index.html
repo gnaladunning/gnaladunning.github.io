@@ -1,4 +1,3 @@
-```html name=index.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,16 +42,30 @@
     // AR Word/Cluster settings
     const WORD_INTERVAL = 11000;  // ms per word (slower for readability)
     const FADE_DURATION = 7000;   // ms for fade transition (slower for readability)
-    const MAX_CLUSTERS = 10;      // Limit clusters to 10
+    const MAX_CLUSTERS = 5;       // Limit clusters to 5
 
-    // Words associated with political disenfranchisement
+    // Narrative elements for disenfranchisement
     const disenfranchisementWords = [
-      "suppression", "gerrymandering", "disenfranchisement", "barrier", "inequality", "exclusion", "marginalized", "voter ID", "poll tax", "intimidation",
-      "redlining", "obstruction", "discrimination", "disqualification", "apartheid", "segregation", "restriction", "displacement", "censorship", "disempowerment",
-      "undercount", "injustice", "alienation", "disadvantage", "minority rule", "corruption", "voter purge", "felony disenfranchisement", "abstention", "silenced",
-      "access denied", "systemic bias", "obstacles", "manipulation", "vote dilution", "unfair districts", "limited access", "exclusion zone", "lack of representation",
-      "absentee barriers", "citizenship test", "provisional ballot", "closed polls", "language barrier", "misinformation", "malapportionment", "disqualified", "lost vote",
-      "protest", "boycott", "disinterested", "apathy", "underrepresentation", "unaccountable", "political isolation", "unheard voices"
+      // Verbs
+      "exclude", "manipulate", "obstruct", "silence", "disqualify",
+      "restrict", "displace", "purge", "alienate", "divide",
+      "undercount", "deny", "limit", "intimidate", "segregate",
+      "marginalize", "dilute", "withdraw", "erase", "censor",
+
+      // Conjunctions / Linking words
+      "because", "while", "although", "even though", "if", "so",
+      "but", "yet", "and", "or", "for", "however",
+
+      // Nouns / Concepts
+      "suppression", "gerrymandering", "barrier", "inequality", "exclusion",
+      "voter ID", "poll tax", "redlining", "apartheid", "disempowerment",
+      "injustice", "minority rule", "corruption", "felony disenfranchisement",
+      "abstention", "access denied", "systemic bias", "obstacles",
+      "vote dilution", "unfair districts", "lack of representation",
+      "absentee barriers", "citizenship test", "provisional ballot",
+      "closed polls", "language barrier", "malapportionment", "lost vote",
+      "boycott", "apathy", "underrepresentation", "political isolation",
+      "unheard voices"
       // Add more as needed
     ];
 
@@ -123,7 +136,7 @@
               minY > 0 && maxY < height - 1
             ) {
               clusters.push(cluster);
-              if (clusters.length >= MAX_CLUSTERS) return clusters; // Limit to 10 clusters
+              if (clusters.length >= MAX_CLUSTERS) return clusters; // Limit to 5 clusters
             }
           }
         }
@@ -312,7 +325,7 @@
         let clusterCenters = clusters.map(getClusterCenter);
         let clusterAreaSizes = clusters.map(getClusterSize);
 
-        let nWords = Math.min(clusterCenters.length, MAX_CLUSTERS); // Limit to 10 clusters
+        let nWords = Math.min(clusterCenters.length, MAX_CLUSTERS); // Limit to 5 clusters
         clusterCenters = clusterCenters.slice(0, nWords);
         clusterAreaSizes = clusterAreaSizes.slice(0, nWords);
 
@@ -378,4 +391,3 @@
   </script>
 </body>
 </html>
-```
