@@ -52,9 +52,120 @@
       "a group fights against a controlling regime in a bleak future, risking it all for freedom",
       "teens deal with crushes, drama, and growing up in a high school where everything feels intense",
       "a detective digs into a tangled crime, finding secrets nobody wants uncovered",
-      // ... (remaining snippets unchanged)
+      "a family struggles to keep their restaurant afloat while dealing with hilarious mishaps",
+      "friends get together for weekly trivia night, but relationships complicate everything",
+      "a time traveler tries to fix the past but keeps creating new problems in the present",
+      "a lawyer defends unlikely clients, uncovering truth in every case",
+      "a small town faces big changes when a mysterious stranger arrives",
+      "a superhero tries balancing saving the world and a normal social life",
+      "a chef competes in a high-pressure cooking contest, hoping to win it all",
+      "a scientist makes a discovery that could change humanity, but faces ethical dilemmas",
+      "a musician tours the country, struggling with fame, family, and creative blocks",
+      "a teacher inspires students in a tough school, showing them hope",
+      "two rivals battle for control of a powerful artifact that could reshape the world",
+      "a robot learns about emotions while trying to fit in with humans",
+      "a sports team overcomes setbacks to reach the championship",
+      "siblings inherit a haunted house and must solve its mysteries",
+      "a spy infiltrates an enemy group, risking exposure at every turn",
+      "a couple goes on a road trip, facing unexpected adventures and challenges",
+      "a community bands together to fight corporate greed threatening their homes",
+      "an artist tries to finish their masterpiece before a looming deadline",
+      "a doctor treats unusual cases in a fast-paced city hospital",
+      "a rookie cop partners with a veteran to solve a puzzling crime",
+      "a politician campaigns for change but faces tough opposition",
+      "a magical creature befriends a lonely child, shaping both their destinies",
+      "a group of hackers expose corruption, becoming targets themselves",
+      "a young inventor builds something incredible that draws global attention",
+      "neighbors feud until a crisis forces them to work together",
+      "a survivor navigates a world after a catastrophic event",
+      "a journalist uncovers a scandal, risking their career to reveal the truth",
+      "a college student juggles studies, romance, and a secret double life",
+      "a dancer trains for a life-changing audition, facing setbacks",
+      "a parent tries to reconnect with their teenager after a falling-out",
+      "a group gets stuck in an elevator, revealing secrets and forming bonds",
+      "a dog helps its owner through life's ups and downs",
+      "a fashion designer launches a new line and faces industry challenges",
+      "a gamer becomes an unexpected champion in a global tournament",
+      "a baker opens a new shop, hoping to win over the community",
+      "a group of strangers must solve riddles to escape a locked room",
+      "a pilot flies a risky rescue mission in dangerous weather",
+      "a historian discovers old letters that change how people see the past",
+      "a group organizes a charity event, building friendships along the way",
+      "a scientist and explorer team up to save an endangered species",
+      "an astronaut faces unexpected challenges during a spacewalk",
+      "a festival brings the town together in celebration and conflict",
+      "an actor auditions for a dream role, confronting self-doubt",
+      "a retiree starts a new career, surprising everyone",
+      "a rival band challenges the town's favorite musicians at a contest",
+      "a writer struggles with writer's block and creative inspiration",
+      "a child builds a treehouse that becomes a neighborhood hub",
+      "a chef searches for rare ingredients to create a special dish",
+      "a prankster pulls off elaborate stunts, but faces consequences",
+      "a couple plans a wedding, navigating family drama",
+      "three siblings compete for a family heirloom in funny ways",
+      "a volunteer helps rebuild homes after a disaster",
+      "a mentor guides a young prodigy through tough times",
+      "a singer tries to win a talent show with an original song",
+      "a retired detective gets pulled back into a cold case",
+      "a parent and child switch bodies and gain new perspectives",
+      "a teacher organizes a school play that brings the community together",
+      "a group of friends travel abroad, encountering culture shock",
+      "a lost kitten finds its way home with help from new friends",
+      "an inventor creates a gadget that changes daily life",
+      "a young leader rallies people for an important cause",
+      "a couple struggles to balance work and personal life",
+      "a magician uncovers a real mystery behind their tricks",
+      "a team restores an old building, uncovering its history",
+      "a prodigy faces pressure to meet high expectations",
+      "a neighbor helps solve a local mystery",
+      "a group starts a band and dreams of stardom",
+      "an athlete overcomes injury to achieve a personal best",
+      "a student investigates a campus legend",
+      "a group of artists collaborate on a mural that transforms their city",
+      "a volunteer teaches music in an underserved area",
+      "a family reunites after years apart",
+      "a police officer helps a troubled youth find their path",
+      "a chef mentors young cooks in a competitive kitchen",
+      "a scientist races to solve a global crisis",
+      "a community garden helps neighbors connect",
+      "a group of hikers gets lost and must rely on each other",
+      "a new mayor faces unexpected challenges in office",
+      "a couple adopts a rescue animal and learns new lessons",
+      "a musician writes a song that inspires social change",
+      "a young activist organizes a protest for justice",
+      "a teacher helps a student believe in themselves",
+      "a startup founder pitches an idea to skeptical investors",
+      "a filmmaker documents a town's unique history",
+      "a group of kids solve puzzles to win a treasure hunt",
+      "a nurse comforts patients in a busy hospital",
+      "a team invents a device to clean up pollution",
+      "a parent volunteers at a local shelter",
+      "a librarian helps people discover new worlds through books",
+      "a coach inspires a team to never give up",
+      "a scientist discovers a new species",
+      "a young artist gets their first gallery show",
+      "a family faces a tough move but finds hope in a new place",
+      "a group of neighbors plan a block party",
+      "a student organizes a fundraiser for a good cause",
       "newsroom staff race to cover breaking stories while competing for scoops"
     ];
+
+    function pickSnippets(count) {
+      // Pick 'count' unique random snippets from the array
+      const arr = [...popCultureSnippets];
+      const selected = [];
+      while (selected.length < count && arr.length > 0) {
+        const idx = Math.floor(Math.random() * arr.length);
+        selected.push(arr[idx]);
+        arr.splice(idx, 1);
+      }
+      return selected;
+    }
+
+    // Cluster management with fade-in/fade-out
+    let clusterStates = [];
+    let prevClusterCenters = [];
+    let lastTextTrigger = Date.now();
 
     function isWideRangeColor(r, g, b) {
       r /= 255; g /= 255; b /= 255;
@@ -153,18 +264,6 @@
       return available[Math.floor(Math.random() * available.length)];
     }
 
-    // Cluster management with fade-in/fade-out
-    let clusterStates = [];
-    let prevClusterCenters = [];
-
-    function clustersOverlap(c1, c2, minDist) {
-      let dx = c1.center[0] - c2.center[0];
-      let dy = c1.center[1] - c2.center[1];
-      let dist = Math.sqrt(dx * dx + dy * dy);
-      let minAllowed = minDist + c1.fontSize / 2 + c2.fontSize / 2;
-      return dist < minAllowed;
-    }
-
     function updateClusters(currentCenters, currentSizes) {
       // Assign snippets so they do not overlap (no duplicates on screen)
       let newStates = [];
@@ -240,7 +339,10 @@
 
         // Minimum distance to avoid overlap: fontSize plus some extra
         let minDist = 60 + Math.max(fontSize1, fontSize2);
-        if (clustersOverlap({center: c1.center, fontSize: fontSize1}, {center: c2.center, fontSize: fontSize2}, minDist)) {
+        if ((Math.sqrt(
+              Math.pow(c1.center[0] - c2.center[0], 2) +
+              Math.pow(c1.center[1] - c2.center[1], 2)
+            ) < minDist)) {
           // Push clusters apart horizontally
           if (c1.center[0] < c2.center[0]) {
             c1.center[0] -= minDist / 2;
@@ -403,8 +505,6 @@
       ctx.restore();
     }
 
-    let lastTextTrigger = Date.now();
-
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
@@ -448,6 +548,27 @@
       requestAnimationFrame(draw);
     }
 
+    // Initialize with two random snippets at startup
+    function initializeClusters() {
+      const selectedSnippets = pickSnippets(MAX_CLUSTERS);
+      clusterStates = [];
+      for (let i = 0; i < MAX_CLUSTERS; i++) {
+        clusterStates.push({
+          center: [0, 0],
+          size: 150,
+          snippet: selectedSnippets[i],
+          nextSnippet: selectedSnippets[i],
+          textFade: 1,
+          textLastChange: Date.now(),
+          appearStart: Date.now(),
+          status: "appearing",
+          disappearStart: null,
+          depth: Math.random(),
+          lastUpdate: Date.now()
+        });
+      }
+    }
+
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
       .then(stream => {
         video.srcObject = stream;
@@ -455,6 +576,7 @@
         video.addEventListener('loadedmetadata', () => {
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
+          initializeClusters();
           draw();
         });
       })
