@@ -39,36 +39,115 @@
     const video = document.getElementById('videoElement');
     const ctx = politicalCanvas.getContext('2d');
 
-    // AR Word/Cluster settings (slower for smooth transitions)
-    const WORD_INTERVAL = 50000;  // ms per word (slower for readability)
+    // AR Cluster settings (slower for smooth transitions)
+    const WORD_INTERVAL = 50000;  // ms per text (slower for readability)
     const FADE_DURATION = 30000;  // ms for fade transition (slower for readability)
-    const APPEAR_DURATION = 30000; // ms for new cluster/word fade-in
-    const DISAPPEAR_DURATION = 30000; // ms for cluster/word fade-out
+    const APPEAR_DURATION = 30000; // ms for new cluster/text fade-in
+    const DISAPPEAR_DURATION = 30000; // ms for cluster/text fade-out
     const MAX_CLUSTERS = 5;
 
-    // Narrative elements for disenfranchisement
-    const disenfranchisementWords = [
-      // Verbs
-      "exclude", "manipulate", "obstruct", "silence", "disqualify",
-      "restrict", "displace", "purge", "alienate", "divide",
-      "undercount", "deny", "limit", "intimidate", "segregate",
-      "marginalize", "dilute", "withdraw", "erase", "censor",
-
-      // Conjunctions / Linking words
-      "because", "while", "although", "even though", "if", "so",
-      "but", "yet", "and", "or", "for", "however",
-
-      // Nouns / Concepts
-      "suppression", "gerrymandering", "barrier", "inequality", "exclusion",
-      "voter ID", "poll tax", "redlining", "apartheid", "disempowerment",
-      "injustice", "minority rule", "corruption", "felony disenfranchisement",
-      "abstention", "access denied", "systemic bias", "obstacles",
-      "vote dilution", "unfair districts", "lack of representation",
-      "absentee barriers", "citizenship test", "provisional ballot",
-      "closed polls", "language barrier", "malapportionment", "lost vote",
-      "boycott", "apathy", "underrepresentation", "political isolation",
-      "unheard voices"
-      // Add more as needed
+    // 100 brief, lower-case, multi-line movie/TV descriptions (no proper names, no sentence format)
+    const popCultureSnippets = [
+      "space travel\nalien encounters\nexploration of the unknown",
+      "dystopian future\nrebellion against control\nsearch for freedom",
+      "high school drama\nteen friendships\ncoming of age challenges",
+      "crime investigation\nhidden motives\ntwisted mysteries",
+      "family bonds\nlost and found\njourney home",
+      "survival in wilderness\nresourcefulness\nhuman spirit tested",
+      "fantasy world\nmagic and monsters\nepic quest",
+      "forbidden love\nsocial barriers\nsacrifice and hope",
+      "post-apocalyptic struggle\nscarcity of resources\ntrust issues",
+      "team of superheroes\nsaving the world\nmoral dilemmas",
+      "small town secrets\nunexpected horror\nunraveling truth",
+      "life in prison\nredemption\nfriendship behind bars",
+      "unexpected inheritance\nfamily rivalry\nhidden fortune",
+      "road trip adventure\nself discovery\nunlikely companions",
+      "time travel paradoxes\nchanging fate\nunintended consequences",
+      "cooking competition\nrival chefs\nculinary creativity",
+      "office politics\nawkward encounters\ndaily grind",
+      "dream infiltration\nlayers of reality\nmind games",
+      "search for treasure\nancient maps\nbooby traps",
+      "lost memory\npiecing together clues\nidentity crisis",
+      "magical boarding school\nrival houses\ncoming of age",
+      "alien invasion\nhuman resistance\nsurvival tactics",
+      "spies and double agents\ncovert missions\nbetrayal",
+      "royal intrigue\npalace drama\nsuccession battles",
+      "underdog sports team\nunlikely victory\nteamwork",
+      "paranormal investigations\nhaunted locations\nskeptics and believers",
+      "fashion industry\nrunway dreams\ncompetitive spirit",
+      "organized crime\nfamily loyalty\nrise to power",
+      "music festival\nfriendship\nfinding purpose",
+      "disaster strikes\nrace against time\nheroic efforts",
+      "robot uprising\nhuman survival\nethical dilemmas",
+      "unexpected pregnancy\nlife changes\nsupport networks",
+      "wild west showdown\nlaw vs outlaw\nrevenge",
+      "urban legends\nteen dares\nnighttime suspense",
+      "game show challenges\ncontestant strategies\nprizes at stake",
+      "art heist\nelaborate planning\nmuseum security",
+      "medical drama\nlife saving decisions\nhospital politics",
+      "courtroom battles\nlegal twists\nsearch for justice",
+      "hidden talents\nunlikely mentor\npersonal growth",
+      "travel vlog\nglobal adventures\ncultural surprises",
+      "remote island\nstranded strangers\ndecoding mysteries",
+      "virtual reality\nidentity confusion\nescape attempts",
+      "celebrity scandal\nmedia frenzy\nreputation at risk",
+      "magical creatures\nhidden realms\nfriendship tested",
+      "sports rivalry\ntraining montage\nfinal showdown",
+      "political campaign\nbehind the scenes\nunexpected twists",
+      "family reunion\nold wounds\nhealing together",
+      "mountain climbing\nextreme conditions\nperseverance",
+      "historical epic\nrise and fall\nlegacy",
+      "baking contest\nsweet creations\nlast minute drama",
+      "detective noir\nshadowy figures\nmoral ambiguity",
+      "space station crisis\ncrew conflict\nrepair race",
+      "parallel universes\nalternate lives\nchoices explored",
+      "eccentric inventor\nbreakthrough discovery\nsabotage",
+      "supernatural pact\nunleashed power\nfate rewritten",
+      "fashion makeover\nconfidence boost\nunexpected romance",
+      "startup launch\ntech innovation\nrival companies",
+      "secret society\nhidden rituals\nexposing the truth",
+      "family road trip\nlost directions\nunexpected detours",
+      "science experiment\naccidental results\nchaos unleashed",
+      "alien friendship\nadapting to earth\nshared adventure",
+      "teen rivalry\nschool politics\ncoming together",
+      "hotel mystery\neccentric guests\nhidden agendas",
+      "pirate crew\nsearch for gold\nmutiny threats",
+      "urban fantasy\ncreatures among us\nmagic in shadows",
+      "holiday gathering\nold traditions\nnew beginnings",
+      "space race\ninternational rivals\nunexpected alliances",
+      "unexpected illness\nhealing journey\nfamily support",
+      "hidden bunker\nsurvival strategy\ntrust issues",
+      "wedding planning\nchaotic mishaps\nfamily drama",
+      "dance competition\ncreative routines\nrival performers",
+      "secret laboratory\nforbidden experiments\ngovernment cover-up",
+      "lost artifact\nancient prophecy\nadventure quest",
+      "desert trek\nsearch for water\nendurance",
+      "cult leader\nnew recruits\nbreaking free",
+      "summer camp\noutdoor challenges\nfriendship",
+      "art school\ncreative rivalry\ninspiration",
+      "robot companion\nlearning emotions\nunexpected bond",
+      "train journey\nstrangers colliding\nshared stories",
+      "tech startup\nfunding struggles\ninnovation race",
+      "haunted mansion\nghostly encounters\nfamily secrets",
+      "magician's apprentice\nnew tricks\nstage rivalry",
+      "political scandal\nmedia investigation\ncover-up",
+      "remote village\noutsider arrives\ncultural clash",
+      "lost city\nancient curse\nexploration",
+      "snowstorm survival\nfinding shelter\nteamwork",
+      "unexpected inheritance\nfamily secrets\nrivalry",
+      "futuristic city\nsocial divisions\nrebellion",
+      "detective duo\ntwisted case\ndark secrets",
+      "end of world\nlast survivors\nsearch for hope",
+      "submarine adventure\ndeep sea mysteries\ncrew unity",
+      "forest retreat\npersonal healing\ngroup dynamics",
+      "cooking travel\nlocal flavors\nculinary journey",
+      "martial arts school\ntraining discipline\nhonor",
+      "magical forest\nhidden trails\ncreature encounters",
+      "space colony\nresource scarcity\nnew society",
+      "lost pet\ncommunity search\nemotional journey",
+      "urban explorers\nabandoned sites\nhidden dangers",
+      "television newsroom\nbreaking stories\nstaff rivalry"
+      // Add more if needed
     ];
 
     // Expanded color sampling (keep original logic for greenish/cyan/yellowish)
@@ -164,8 +243,8 @@
       return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length); // area proxy
     }
 
-    function pickWord() {
-      return disenfranchisementWords[Math.floor(Math.random() * disenfranchisementWords.length)];
+    function pickSnippet() {
+      return popCultureSnippets[Math.floor(Math.random() * popCultureSnippets.length)];
     }
 
     // Cluster management with fade-in/fade-out
@@ -207,10 +286,10 @@
           newStates.push({
             center,
             size,
-            word: pickWord(),
-            nextWord: pickWord(),
-            wordFade: 1,
-            wordLastChange: Date.now(),
+            snippet: pickSnippet(),
+            nextSnippet: pickSnippet(),
+            textFade: 1,
+            textLastChange: Date.now(),
             appearStart: Date.now(),
             status: "appearing",
             disappearStart: null,
@@ -240,7 +319,7 @@
       clusterStates = newStates.slice(0, MAX_CLUSTERS);
     }
 
-    function updateWordTransitions() {
+    function updateTextTransitions() {
       const now = Date.now();
       for (let cluster of clusterStates) {
         // Fade-in new cluster
@@ -258,22 +337,22 @@
           let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
           cluster.disappearProgress = Math.min(1, t);
         }
-        // Word fade (for changing words)
-        if (cluster.wordFade < 1) {
-          let t = (now - cluster.wordLastChange) / FADE_DURATION;
-          cluster.wordFade = Math.min(1, t);
-          if (cluster.wordFade >= 1) {
-            cluster.word = cluster.nextWord;
+        // Text fade (for changing snippets)
+        if (cluster.textFade < 1) {
+          let t = (now - cluster.textLastChange) / FADE_DURATION;
+          cluster.textFade = Math.min(1, t);
+          if (cluster.textFade >= 1) {
+            cluster.snippet = cluster.nextSnippet;
           }
         }
       }
     }
 
-    function triggerWordChanges() {
+    function triggerTextChanges() {
       for (let cluster of clusterStates) {
-        cluster.nextWord = pickWord();
-        cluster.wordFade = 0;
-        cluster.wordLastChange = Date.now();
+        cluster.nextSnippet = pickSnippet();
+        cluster.textFade = 0;
+        cluster.textLastChange = Date.now();
         cluster.depth = Math.random();
       }
     }
@@ -307,7 +386,7 @@
     }
 
     function drawColorOverlays(ctx, clusters) {
-      updateWordTransitions();
+      updateTextTransitions();
       ctx.save();
       // Draw smooth spline if enough clusters
       let centers = clusters.filter(c => c.status !== "disappearing" || (c.status === "disappearing" && c.disappearProgress < 1)).map(c => c.center);
@@ -336,13 +415,13 @@
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
-      // Words at cluster centers, distributed and scaled by size (proximity)
+      // Multi-line text at cluster centers
       for (let i = 0; i < clusters.length; i++) {
         let cluster = clusters[i];
         let [x, y] = cluster.center;
         let z = cluster.depth || 0;
         let size = cluster.size;
-        let minFont = 18, maxFont = 80;
+        let minFont = 18, maxFont = 38;
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
         let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
         let minAlpha = 0.52, maxAlpha = 0.88;
@@ -354,18 +433,18 @@
         if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
         alpha *= appearAlpha;
 
-        // Fade word transitions
-        let word, wordAlpha;
-        if (cluster.wordFade < 1) {
-          word = cluster.nextWord;
-          wordAlpha = alpha * cluster.wordFade * 0.85 + 0.15 * alpha;
+        // Fade text transitions
+        let snippet, snippetAlpha;
+        if (cluster.textFade < 1) {
+          snippet = cluster.nextSnippet;
+          snippetAlpha = alpha * cluster.textFade * 0.85 + 0.15 * alpha;
         } else {
-          word = cluster.word;
-          wordAlpha = alpha;
+          snippet = cluster.snippet;
+          snippetAlpha = alpha;
         }
 
         // Prevent flicker by smoothly fading in/out and keeping alpha above a minimum threshold
-        wordAlpha = Math.max(0.14, wordAlpha);
+        snippetAlpha = Math.max(0.14, snippetAlpha);
 
         ctx.save();
         ctx.translate(x, y);
@@ -374,17 +453,23 @@
         ctx.textBaseline = "middle";
         ctx.shadowColor = "#FF4141";
         ctx.shadowBlur = 20;
-
-        ctx.globalAlpha = wordAlpha;
+        ctx.globalAlpha = snippetAlpha;
         ctx.fillStyle = "#FF4141";
-        ctx.fillText(word, 0, 0);
+
+        // Draw multi-line text (no sentence format, lower case)
+        let lines = snippet.split('\n');
+        let lineHeight = fontSize * 1.18;
+        let baseY = -((lines.length - 1) * lineHeight) / 2;
+        for (let li = 0; li < lines.length; li++) {
+          ctx.fillText(lines[li], 0, baseY + li * lineHeight);
+        }
 
         ctx.restore();
       }
       ctx.restore();
     }
 
-    let lastWordTrigger = Date.now();
+    let lastTextTrigger = Date.now();
 
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -421,14 +506,9 @@
         }
         prevClusterCenters = clusterCenters.slice();
 
-        if (centersChanged) {
-          // Instead of instant word change, let clusters fade in/out
-          // Only trigger next words for clusters that remain visible
-        }
-
-        if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
-          triggerWordChanges();
-          lastWordTrigger = Date.now();
+        if (Date.now() - lastTextTrigger >= WORD_INTERVAL) {
+          triggerTextChanges();
+          lastTextTrigger = Date.now();
         }
 
         drawColorOverlays(ctx, clusterStates);
