@@ -42,7 +42,6 @@
     // AR Cluster settings
     const TEXT_DURATION = 3000;        // ms per text (3 sec)
     const FADE_DURATION = 500;         // ms for fade transition (0.5 sec)
-    const MAX_CLUSTERS = 2;
 
     // 100 brief, natural, conversational movie/TV descriptions
     const popCultureSnippets = [
@@ -148,24 +147,18 @@
       "newsroom staff race to cover breaking stories while competing for scoops"
     ];
 
-    function pickSnippets(count) {
-      // Pick 'count' unique random snippets from the array
-      const arr = [...popCultureSnippets];
-      const selected = [];
-      while (selected.length < count && arr.length > 0) {
-        const idx = Math.floor(Math.random() * arr.length);
-        selected.push(arr[idx]);
-        arr.splice(idx, 1);
-      }
-      return selected;
-    }
-
-    let clusterStates = [];
+    let currentSnippet = "";
+    let nextSnippet = "";
+    let textFade = 1;
+    let textLastChange = Date.now();
+    let textStatus = "visible";
+    let fontSize = 40;
     let lastTextTrigger = Date.now();
     let colorRecognitionPaused = false;
+    let lastClusterHash = "";
 
-    function pickSnippet(existing = []) {
-      let available = popCultureSnippets.filter(s => !existing.includes(s));
+    function pickSnippet(exclude = []) {
+      let available = popCultureSnippets.filter(s => !exclude.includes(s));
       if (available.length === 0) return popCultureSnippets[Math.floor(Math.random() * popCultureSnippets.length)];
       return available[Math.floor(Math.random() * available.length)];
     }
@@ -235,10 +228,12 @@
               minY > 0 && maxY < height - 1
             ) {
               clusters.push(cluster);
-              if (clusters.length >= MAX_CLUSTERS) return clusters;
+              break; // Only keep one cluster
             }
           }
+          if (clusters.length > 0) break;
         }
+        if (clusters.length > 0) break;
       }
       return clusters;
     }
@@ -261,126 +256,59 @@
       return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length);
     }
 
-    // --- Cluster state management ---
-    function initializeClusters() {
-      const selectedSnippets = pickSnippets(MAX_CLUSTERS);
-      clusterStates = [];
-      for (let i = 0; i < MAX_CLUSTERS; i++) {
-        clusterStates.push({
-          center: [politicalCanvas.width / 2, politicalCanvas.height / (MAX_CLUSTERS + 1) * (i + 1)],
-          size: 150,
-          snippet: selectedSnippets[i],
-          nextSnippet: selectedSnippets[i],
-          textFade: 1,
-          textLastChange: Date.now(),
-          status: "visible",
-          fontSize: 40,
-        });
+    function updateSnippetForCluster(clusterCenter, clusterSize) {
+      // Only one text shown at a time, centered on cluster
+      fontSize = Math.round(28 + Math.max(0, Math.min(1, (clusterSize - 120) / (politicalCanvas.width * 0.13))) * (90 - 28));
+      // Pick a new snippet if needed
+      // Hash cluster center and size to detect change
+      let hash = `${Math.round(clusterCenter[0])},${Math.round(clusterCenter[1])},${Math.round(clusterSize)}`;
+      if (hash !== lastClusterHash) {
+        nextSnippet = pickSnippet([currentSnippet]);
+        textFade = 0;
+        textLastChange = Date.now();
+        lastClusterHash = hash;
       }
     }
 
-    function updateClustersWithColors(clusterCenters, clusterSizes) {
-      // Assign snippets so they do not overlap (no duplicates on screen)
-      // We'll move them vertically apart if they are too close
-      let usedSnippets = clusterStates.map(c => c.snippet);
-      let newStates = [];
-      for (let i = 0; i < clusterCenters.length; i++) {
-        let center = [...clusterCenters[i]];
-        let size = clusterSizes[i];
-        let snippet = pickSnippet(usedSnippets.concat(newStates.map(c => c.snippet)));
-        newStates.push({
-          center,
-          size,
-          snippet,
-          nextSnippet: snippet,
-          textFade: 1,
-          textLastChange: Date.now(),
-          status: "visible",
-          fontSize: 40,
-        });
-      }
-      // Adjust vertical positions to avoid overlap
-      const minVerticalDist = 60;
-      for (let i = 0; i < newStates.length - 1; i++) {
-        let a = newStates[i];
-        let b = newStates[i + 1];
-        if (Math.abs(a.center[1] - b.center[1]) < minVerticalDist) {
-          // Move second text down if overlap
-          b.center[1] = a.center[1] + minVerticalDist;
-          // Clamp to canvas
-          b.center[1] = Math.min(b.center[1], politicalCanvas.height - minVerticalDist);
-        }
-      }
-      clusterStates = newStates;
-    }
-
-    function nextTextSnippets() {
-      let used = clusterStates.map(c => c.snippet);
-      for (let i = 0; i < clusterStates.length; i++) {
-        let next = pickSnippet(used);
-        clusterStates[i].nextSnippet = next;
-        clusterStates[i].textFade = 0;
-        clusterStates[i].textLastChange = Date.now();
-        used.push(next);
-      }
-    }
-
-    function updateTextTransitions() {
+    function updateTextTransition() {
       const now = Date.now();
-      for (let cluster of clusterStates) {
-        if (cluster.textFade < 1) {
-          let t = (now - cluster.textLastChange) / FADE_DURATION;
-          cluster.textFade = Math.min(1, t);
-          if (cluster.textFade >= 1) {
-            cluster.snippet = cluster.nextSnippet;
-          }
+      if (textFade < 1) {
+        let t = (now - textLastChange) / FADE_DURATION;
+        textFade = Math.min(1, t);
+        if (textFade >= 1) {
+          currentSnippet = nextSnippet;
         }
       }
     }
 
-    function drawColorOverlays(ctx, clusters) {
-      updateTextTransitions();
+    function drawColorOverlay(ctx, center, size) {
+      updateTextTransition();
       ctx.save();
-      // Multi-line text at cluster centers
-      for (let i = 0; i < clusters.length; i++) {
-        let cluster = clusters[i];
-        let [x, y] = cluster.center;
-        let size = cluster.size;
-        let fontSize = cluster.fontSize || 40;
-        // Adjust font size by cluster size if available
-        let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
-        fontSize = Math.round(28 + norm * (90 - 28));
-        cluster.fontSize = fontSize;
+      let x = center[0], y = center[1];
+      let alpha = 0.93;
+      let snippet, snippetAlpha;
+      if (textFade < 1) {
+        snippet = nextSnippet;
+        snippetAlpha = alpha * textFade * 0.93 + 0.07 * alpha;
+      } else {
+        snippet = currentSnippet;
+        snippetAlpha = alpha;
+      }
+      snippetAlpha = Math.max(0.2, snippetAlpha);
 
-        // If vertical overlap, move apart (already handled in update)
-        let alpha = 0.93;
-        let snippet, snippetAlpha;
-        if (cluster.textFade < 1) {
-          snippet = cluster.nextSnippet;
-          snippetAlpha = alpha * cluster.textFade * 0.93 + 0.07 * alpha;
-        } else {
-          snippet = cluster.snippet;
-          snippetAlpha = alpha;
-        }
-        snippetAlpha = Math.max(0.2, snippetAlpha);
-
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.shadowColor = "#FF4141";
-        ctx.shadowBlur = 23;
-        ctx.globalAlpha = snippetAlpha;
-        ctx.fillStyle = "#FF4141";
-        // Draw multi-line text (no sentence format, lower case)
-        let lines = snippet.split('\n');
-        let lineHeight = fontSize * 1.28;
-        let baseY = -((lines.length - 1) * lineHeight) / 2;
-        for (let li = 0; li < lines.length; li++) {
-          ctx.fillText(lines[li], 0, baseY + li * lineHeight);
-        }
-        ctx.restore();
+      ctx.translate(x, y);
+      ctx.font = `bold ${fontSize}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "#FF4141";
+      ctx.shadowBlur = 23;
+      ctx.globalAlpha = snippetAlpha;
+      ctx.fillStyle = "#FF4141";
+      let lines = snippet.split('\n');
+      let lineHeight = fontSize * 1.28;
+      let baseY = -((lines.length - 1) * lineHeight) / 2;
+      for (let li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], 0, baseY + li * lineHeight);
       }
       ctx.restore();
     }
@@ -395,16 +323,20 @@
         ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
         ctx.filter = "none";
 
-        // Only update clusters by color if not paused
+        let center = [politicalCanvas.width/2, politicalCanvas.height/2];
+        let size = 150;
+        // Only update cluster by color if not paused
         if (!colorRecognitionPaused) {
           let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
           let data = frame.data;
           let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
-          let clusterCenters = clusters.length ? clusters.map(getClusterCenter) : [ [politicalCanvas.width/2, politicalCanvas.height/3], [politicalCanvas.width/2, 2*politicalCanvas.height/3] ];
-          let clusterAreaSizes = clusters.length ? clusters.map(getClusterSize) : [150, 150];
-          updateClustersWithColors(clusterCenters, clusterAreaSizes);
+          if (clusters.length) {
+            center = getClusterCenter(clusters[0]);
+            size = getClusterSize(clusters[0]);
+            updateSnippetForCluster(center, size);
+          }
         }
-        drawColorOverlays(ctx, clusterStates);
+        drawColorOverlay(ctx, center, size);
       }
       requestAnimationFrame(draw);
     }
@@ -415,7 +347,9 @@
       let timeSinceLast = now - lastTextTrigger;
       if (timeSinceLast >= TEXT_DURATION) {
         colorRecognitionPaused = true;
-        nextTextSnippets();
+        nextSnippet = pickSnippet([currentSnippet]);
+        textFade = 0;
+        textLastChange = now;
         lastTextTrigger = now;
         setTimeout(() => {
           colorRecognitionPaused = false;
@@ -431,7 +365,9 @@
         video.addEventListener('loadedmetadata', () => {
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
-          initializeClusters();
+          currentSnippet = pickSnippet();
+          nextSnippet = currentSnippet;
+          textFade = 1;
           draw();
           textAdvanceLoop();
         });
