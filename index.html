@@ -2,112 +2,464 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AR Word Scatter (HIRO Marker, Mobile Ready)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <title>Political Disenfranchisement AR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <style>
-    #startButton {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 10;
-      padding: 1em 2em;
-      background: #ff3c3c;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 1.5em;
-      font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      touch-action: none;
+      background: #000;
     }
-    body { margin:0; overflow:hidden; }
+    #politicalCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+      background: #000;
+      object-fit: cover;
+      display: block;
+    }
+    #videoElement {
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <button id="startButton">Start Listening</button>
-  <a-scene 
-    embedded 
-    arjs="sourceType: webcam;" 
-    vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true;"
-    device-orientation-permission-ui="enabled: false">
-    <a-marker preset="hiro" id="hiroMarker">
-      <!-- Words will be added here dynamically -->
-    </a-marker>
-    <a-entity camera></a-entity>
-  </a-scene>
+  <video id="videoElement" autoplay playsinline muted></video>
+  <canvas id="politicalCanvas"></canvas>
   <script>
-    // Fixes for iOS and Android compatibility
-    // - Start all audio and speech APIs only after a user gesture
-    // - Avoids using features that require special permissions not supported on mobile
+    const politicalCanvas = document.getElementById('politicalCanvas');
+    const video = document.getElementById('videoElement');
+    const ctx = politicalCanvas.getContext('2d');
 
-    let recognition;
-    let marker = document.getElementById('hiroMarker');
-    let addedWords = new Set();
+    // AR Word/Cluster settings (slower for smooth transitions)
+    const WORD_INTERVAL = 50000;  // ms per word (slower for readability)
+    const FADE_DURATION = 30000;  // ms for fade transition (slower for readability)
+    const APPEAR_DURATION = 30000; // ms for new cluster/word fade-in
+    const DISAPPEAR_DURATION = 30000; // ms for cluster/word fade-out
+    const MAX_CLUSTERS = 5;
 
-    function getRandomPosition() {
-      // Spread words within a reasonable area above the marker
-      let x = (Math.random() - 0.5) * 4; // -2 to 2
-      let y = 1.2 + Math.random() * 2;   // 1.2 to 3.2
-      let z = (Math.random() - 0.5) * 2; // -1 to 1
-      return `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
+    // Narrative elements for disenfranchisement
+    const disenfranchisementWords = [
+      // Verbs
+      "exclude", "manipulate", "obstruct", "silence", "disqualify",
+      "restrict", "displace", "purge", "alienate", "divide",
+      "undercount", "deny", "limit", "intimidate", "segregate",
+      "marginalize", "dilute", "withdraw", "erase", "censor",
+
+      // Conjunctions / Linking words
+      "because", "while", "although", "even though", "if", "so",
+      "but", "yet", "and", "or", "for", "however",
+
+      // Nouns / Concepts
+      "suppression", "gerrymandering", "barrier", "inequality", "exclusion",
+      "voter ID", "poll tax", "redlining", "apartheid", "disempowerment",
+      "injustice", "minority rule", "corruption", "felony disenfranchisement",
+      "abstention", "access denied", "systemic bias", "obstacles",
+      "vote dilution", "unfair districts", "lack of representation",
+      "absentee barriers", "citizenship test", "provisional ballot",
+      "closed polls", "language barrier", "malapportionment", "lost vote",
+      "boycott", "apathy", "underrepresentation", "political isolation",
+      "unheard voices"
+      // Add more as needed
+    ];
+
+    // Expanded color sampling (keep original logic for greenish/cyan/yellowish)
+    function isWideRangeColor(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      let max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+      if (max === min) {
+        h = s = 0;
+      } else {
+        let d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
+          case g: h = ((b - r) / d + 2); break;
+          case b: h = ((r - g) / d + 4); break;
+        }
+        h /= 6;
+      }
+      const greenish = h >= 0.2 && h <= 0.45;
+      const yellowish = h >= 0.12 && h < 0.2;
+      const cyanish = h > 0.45 && h < 0.55;
+      const bright = l > 0.28;
+      const colorful = s > 0.35;
+      return (greenish || yellowish || cyanish) && bright && colorful;
     }
 
-    function addWord(word) {
-      if (!word || addedWords.has(word.toLowerCase())) return;
-      addedWords.add(word.toLowerCase());
-
-      let entity = document.createElement('a-entity');
-      entity.setAttribute('text', `value: ${word}; color: #FF3C3C; align: center; anchor: center; width: 2;`);
-      entity.setAttribute('position', getRandomPosition());
-      entity.setAttribute('rotation', '-90 0 0');
-      entity.setAttribute('scale', '2 2 2');
-      marker.appendChild(entity);
-    }
-
-    document.getElementById('startButton').addEventListener('click', function() {
-      // Request microphone access up front to trigger iOS Safari permission dialog
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(function(stream) {
-          // Use Web Speech API for speech recognition
-          window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-          if (window.SpeechRecognition) {
-            recognition = new window.SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
-
-            recognition.onresult = function(event) {
-              let transcript = '';
-              for (let i = event.resultIndex; i < event.results.length; ++i) {
-                transcript += event.results[i][0].transcript;
+    // Cluster detection with flag for clusters moving out of view
+    function clusterColorPixels(data, width, height) {
+      const visited = new Uint8Array(width * height);
+      const clusters = [];
+      const pixelIndex = (x, y) => (y * width + x) * 4;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          if (visited[idx]) continue;
+          const i = pixelIndex(x, y);
+          if (isWideRangeColor(data[i], data[i + 1], data[i + 2])) {
+            const queue = [[x, y]];
+            const cluster = [];
+            let minX = x, maxX = x, minY = y, maxY = y;
+            visited[idx] = 1;
+            while (queue.length) {
+              const [cx, cy] = queue.pop();
+              cluster.push([cx, cy]);
+              minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+              minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+              for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                  const nx = cx + dx, ny = cy + dy;
+                  if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                  const nidx = ny * width + nx;
+                  if (!visited[nidx]) {
+                    const ni = pixelIndex(nx, ny);
+                    if (isWideRangeColor(data[ni], data[ni + 1], data[ni + 2])) {
+                      queue.push([nx, ny]);
+                      visited[nidx] = 1;
+                    }
+                  }
+                }
               }
-              transcript = transcript.trim();
-              let words = transcript.split(/\s+/);
-              words.forEach(word => addWord(word));
-            };
-
-            recognition.onerror = function(event) {
-              // Some Android devices require another user gesture if not allowed at first
-              if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-                alert("Microphone or speech recognition access was not allowed. Please refresh and try again.");
-              }
-              console.error(event.error);
-            };
-
-            recognition.start();
-          } else {
-            alert('Sorry, Speech Recognition is not supported on this device/browser.');
+            }
+            // Only keep clusters fully visible
+            if (
+              cluster.length > 18 &&
+              minX > 0 && maxX < width - 1 &&
+              minY > 0 && maxY < height - 1
+            ) {
+              clusters.push(cluster);
+              if (clusters.length >= MAX_CLUSTERS) return clusters; // Limit to 5 clusters
+            }
           }
-        })
-        .catch(function(err) {
-          alert('Microphone access denied or not available. Please enable microphone access in your browser settings.');
-        });
+        }
+      }
+      return clusters;
+    }
 
-      this.style.display = 'none';
+    function getClusterCenter(cluster) {
+      let sumX = 0, sumY = 0;
+      for (const [x, y] of cluster) {
+        sumX += x;
+        sumY += y;
+      }
+      return [sumX / cluster.length, sumY / cluster.length];
+    }
+
+    function getClusterSize(cluster) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of cluster) {
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length); // area proxy
+    }
+
+    function pickWord() {
+      return disenfranchisementWords[Math.floor(Math.random() * disenfranchisementWords.length)];
+    }
+
+    // Cluster management with fade-in/fade-out
+    let clusterStates = [];
+    let prevClusterCenters = [];
+
+    function updateClusters(currentCenters, currentSizes) {
+      // Match clusters by proximity
+      let newStates = [];
+      let matched = new Set();
+      for (let i = 0; i < currentCenters.length; i++) {
+        let center = currentCenters[i];
+        let size = currentSizes[i];
+        let foundIdx = -1, minDist = Infinity;
+        for (let j = 0; j < clusterStates.length; j++) {
+          let prev = clusterStates[j];
+          if (prev.status === "disappearing") continue;
+          let dist = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
+          if (dist < 60 && dist < minDist && !matched.has(j)) {
+            minDist = dist;
+            foundIdx = j;
+          }
+        }
+        if (foundIdx !== -1) {
+          // Existing cluster: update center & size
+          let prev = clusterStates[foundIdx];
+          newStates.push({
+            ...prev,
+            center,
+            size,
+            appearStart: prev.appearStart,
+            status: "visible",
+            disappearStart: null,
+            lastUpdate: Date.now()
+          });
+          matched.add(foundIdx);
+        } else {
+          // New cluster: fade in
+          newStates.push({
+            center,
+            size,
+            word: pickWord(),
+            nextWord: pickWord(),
+            wordFade: 1,
+            wordLastChange: Date.now(),
+            appearStart: Date.now(),
+            status: "appearing",
+            disappearStart: null,
+            depth: Math.random(),
+            lastUpdate: Date.now()
+          });
+        }
+      }
+
+      // Existing clusters not matched: fade out
+      for (let j = 0; j < clusterStates.length; j++) {
+        if (matched.has(j)) continue;
+        let prev = clusterStates[j];
+        if (prev.status === "disappearing" && prev.disappearStart && Date.now() - prev.disappearStart < DISAPPEAR_DURATION) {
+          // Continue fading out
+          newStates.push(prev);
+        } else if (prev.status !== "disappearing") {
+          // Start fade out
+          newStates.push({
+            ...prev,
+            status: "disappearing",
+            disappearStart: Date.now()
+          });
+        }
+      }
+      // Limit to MAX_CLUSTERS
+      clusterStates = newStates.slice(0, MAX_CLUSTERS);
+    }
+
+    function updateWordTransitions() {
+      const now = Date.now();
+      for (let cluster of clusterStates) {
+        // Fade-in new cluster
+        if (cluster.status === "appearing" && cluster.appearStart) {
+          let t = (now - cluster.appearStart) / APPEAR_DURATION;
+          cluster.appearProgress = Math.min(1, t);
+          if (cluster.appearProgress >= 1) {
+            cluster.status = "visible";
+            cluster.appearStart = null;
+            cluster.appearProgress = 1;
+          }
+        }
+        // Fade-out disappearing cluster
+        if (cluster.status === "disappearing" && cluster.disappearStart) {
+          let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
+          cluster.disappearProgress = Math.min(1, t);
+        }
+        // Word fade (for changing words)
+        if (cluster.wordFade < 1) {
+          let t = (now - cluster.wordLastChange) / FADE_DURATION;
+          cluster.wordFade = Math.min(1, t);
+          if (cluster.wordFade >= 1) {
+            cluster.word = cluster.nextWord;
+          }
+        }
+      }
+    }
+
+    function triggerWordChanges() {
+      for (let cluster of clusterStates) {
+        cluster.nextWord = pickWord();
+        cluster.wordFade = 0;
+        cluster.wordLastChange = Date.now();
+        cluster.depth = Math.random();
+      }
+    }
+
+    // Spline for smooth curves
+    function getSplinePoints(points, tension = 0.5, numOfSeg = 18) {
+      if (points.length < 2) return points;
+      let result = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        let p0 = points[i === 0 ? i : i - 1];
+        let p1 = points[i];
+        let p2 = points[i + 1];
+        let p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+        for (let t = 0; t < numOfSeg; t++) {
+          let st = t / numOfSeg;
+          let x = catmullRom(p0[0], p1[0], p2[0], p3[0], st, tension);
+          let y = catmullRom(p0[1], p1[1], p2[1], p3[1], st, tension);
+          result.push([x, y]);
+        }
+      }
+      return result;
+    }
+
+    function catmullRom(p0, p1, p2, p3, t, tension) {
+      let v0 = (p2 - p0) * tension;
+      let v1 = (p3 - p1) * tension;
+      return (2 * p1 - 2 * p2 + v0 + v1) * t * t * t
+           + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t * t
+           + v0 * t
+           + p1;
+    }
+
+    function drawColorOverlays(ctx, clusters) {
+      updateWordTransitions();
+      ctx.save();
+      // Draw smooth spline if enough clusters
+      let centers = clusters.filter(c => c.status !== "disappearing" || (c.status === "disappearing" && c.disappearProgress < 1)).map(c => c.center);
+      if (centers.length >= 2) {
+        let spline = getSplinePoints(centers, 0.5, 18);
+        ctx.beginPath();
+        ctx.strokeStyle = "#FF4141";
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = "#FF4141";
+        ctx.shadowBlur = 16;
+        for (let i = 0; i < spline.length - 1; i++) {
+          let [x1, y1] = spline[i];
+          let [x2, y2] = spline[i + 1];
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        // Fade lines based on min cluster alpha (to avoid flicker)
+        let minAlpha = 1.0;
+        for (let c of clusters) {
+          let alpha = 1.0;
+          if (c.status === "appearing") alpha = c.appearProgress || 0;
+          if (c.status === "disappearing") alpha = 1 - (c.disappearProgress || 0);
+          minAlpha = Math.min(minAlpha, alpha);
+        }
+        ctx.globalAlpha = 0.38 + minAlpha * 0.3;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+      // Words at cluster centers, distributed and scaled by size (proximity)
+      for (let i = 0; i < clusters.length; i++) {
+        let cluster = clusters[i];
+        let [x, y] = cluster.center;
+        let z = cluster.depth || 0;
+        let size = cluster.size;
+        let minFont = 18, maxFont = 80;
+        let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
+        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
+        let minAlpha = 0.52, maxAlpha = 0.88;
+        let alpha = maxAlpha - z * (maxAlpha - minAlpha);
+
+        // Fade-in or fade-out for clusters
+        let appearAlpha = 1.0;
+        if (cluster.status === "appearing") appearAlpha = cluster.appearProgress || 0;
+        if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
+        alpha *= appearAlpha;
+
+        // Fade word transitions
+        let word, wordAlpha;
+        if (cluster.wordFade < 1) {
+          word = cluster.nextWord;
+          wordAlpha = alpha * cluster.wordFade * 0.85 + 0.15 * alpha;
+        } else {
+          word = cluster.word;
+          wordAlpha = alpha;
+        }
+
+        // Prevent flicker by smoothly fading in/out and keeping alpha above a minimum threshold
+        wordAlpha = Math.max(0.14, wordAlpha);
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = "#FF4141";
+        ctx.shadowBlur = 20;
+
+        ctx.globalAlpha = wordAlpha;
+        ctx.fillStyle = "#FF4141";
+        ctx.fillText(word, 0, 0);
+
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    let lastWordTrigger = Date.now();
+
+    function draw() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
+          politicalCanvas.width = video.videoWidth;
+          politicalCanvas.height = video.videoHeight;
+        }
+        ctx.filter = "blur(1.5px) brightness(1.18) contrast(1.18)";
+        ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
+        ctx.filter = "none";
+        let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
+        let data = frame.data;
+        let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
+        let clusterCenters = clusters.map(getClusterCenter);
+        let clusterAreaSizes = clusters.map(getClusterSize);
+
+        // Cluster fade-in/fade-out management
+        updateClusters(clusterCenters, clusterAreaSizes);
+
+        // If clusters have changed or moved out, update instantly (no flicker, slow transition)
+        let centersChanged = false;
+        if (prevClusterCenters.length !== clusterCenters.length) {
+          centersChanged = true;
+        } else {
+          for (let i = 0; i < clusterCenters.length; i++) {
+            if (
+              Math.abs(clusterCenters[i][0] - (prevClusterCenters[i]?.[0] || 0)) > 80 ||
+              Math.abs(clusterCenters[i][1] - (prevClusterCenters[i]?.[1] || 0)) > 80
+            ) {
+              centersChanged = true;
+              break;
+            }
+          }
+        }
+        prevClusterCenters = clusterCenters.slice();
+
+        if (centersChanged) {
+          // Instead of instant word change, let clusters fade in/out
+          // Only trigger next words for clusters that remain visible
+        }
+
+        if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
+          triggerWordChanges();
+          lastWordTrigger = Date.now();
+        }
+
+        drawColorOverlays(ctx, clusterStates);
+      }
+      requestAnimationFrame(draw);
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        video.addEventListener('loadedmetadata', () => {
+          politicalCanvas.width = video.videoWidth;
+          politicalCanvas.height = video.videoHeight;
+          draw();
+        });
+      })
+      .catch(() => {
+        alert('Camera access denied or unavailable.');
+      });
+
+    window.addEventListener('resize', () => {
+      politicalCanvas.width = window.innerWidth;
+      politicalCanvas.height = window.innerHeight;
+    });
+
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        politicalCanvas.width = window.innerWidth;
+        politicalCanvas.height = window.innerHeight;
+      }, 500);
     });
   </script>
 </body>
