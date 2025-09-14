@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TV TALK</title>
+  <title>Political Disenfranchisement AR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <style>
     html, body {
@@ -39,131 +39,39 @@
     const video = document.getElementById('videoElement');
     const ctx = politicalCanvas.getContext('2d');
 
-    // AR Cluster settings
-    const TEXT_DURATION = 3000;        // ms per text (3 sec)
-    const FADE_DURATION = 500;         // ms for fade transition (0.5 sec)
+    // AR Word/Cluster settings (slower for smooth transitions)
+    const WORD_INTERVAL = 50000;  // ms per word (slower for readability)
+    const FADE_DURATION = 30000;  // ms for fade transition (slower for readability)
+    const APPEAR_DURATION = 30000; // ms for new cluster/word fade-in
+    const DISAPPEAR_DURATION = 30000; // ms for cluster/word fade-out
+    const MAX_CLUSTERS = 5;
 
-    // 100 brief, natural, conversational movie/TV descriptions
-    const popCultureSnippets = [
-      "a crew heads into deep space, hoping to find new worlds but ends up facing strange creatures",
-      "a group fights against a controlling regime in a bleak future, risking it all for freedom",
-      "teens deal with crushes, drama, and growing up in a high school where everything feels intense",
-      "a detective digs into a tangled crime, finding secrets nobody wants uncovered",
-      "a family struggles to keep their restaurant afloat while dealing with hilarious mishaps",
-      "friends get together for weekly trivia night, but relationships complicate everything",
-      "a time traveler tries to fix the past but keeps creating new problems in the present",
-      "a lawyer defends unlikely clients, uncovering truth in every case",
-      "a small town faces big changes when a mysterious stranger arrives",
-      "a superhero tries balancing saving the world and a normal social life",
-      "a chef competes in a high-pressure cooking contest, hoping to win it all",
-      "a scientist makes a discovery that could change humanity, but faces ethical dilemmas",
-      "a musician tours the country, struggling with fame, family, and creative blocks",
-      "a teacher inspires students in a tough school, showing them hope",
-      "two rivals battle for control of a powerful artifact that could reshape the world",
-      "a robot learns about emotions while trying to fit in with humans",
-      "a sports team overcomes setbacks to reach the championship",
-      "siblings inherit a haunted house and must solve its mysteries",
-      "a spy infiltrates an enemy group, risking exposure at every turn",
-      "a couple goes on a road trip, facing unexpected adventures and challenges",
-      "a community bands together to fight corporate greed threatening their homes",
-      "an artist tries to finish their masterpiece before a looming deadline",
-      "a doctor treats unusual cases in a fast-paced city hospital",
-      "a rookie cop partners with a veteran to solve a puzzling crime",
-      "a politician campaigns for change but faces tough opposition",
-      "a magical creature befriends a lonely child, shaping both their destinies",
-      "a group of hackers expose corruption, becoming targets themselves",
-      "a young inventor builds something incredible that draws global attention",
-      "neighbors feud until a crisis forces them to work together",
-      "a survivor navigates a world after a catastrophic event",
-      "a journalist uncovers a scandal, risking their career to reveal the truth",
-      "a college student juggles studies, romance, and a secret double life",
-      "a dancer trains for a life-changing audition, facing setbacks",
-      "a parent tries to reconnect with their teenager after a falling-out",
-      "a group gets stuck in an elevator, revealing secrets and forming bonds",
-      "a dog helps its owner through life's ups and downs",
-      "a fashion designer launches a new line and faces industry challenges",
-      "a gamer becomes an unexpected champion in a global tournament",
-      "a baker opens a new shop, hoping to win over the community",
-      "a group of strangers must solve riddles to escape a locked room",
-      "a pilot flies a risky rescue mission in dangerous weather",
-      "a historian discovers old letters that change how people see the past",
-      "a group organizes a charity event, building friendships along the way",
-      "a scientist and explorer team up to save an endangered species",
-      "an astronaut faces unexpected challenges during a spacewalk",
-      "a festival brings the town together in celebration and conflict",
-      "an actor auditions for a dream role, confronting self-doubt",
-      "a retiree starts a new career, surprising everyone",
-      "a rival band challenges the town's favorite musicians at a contest",
-      "a writer struggles with writer's block and creative inspiration",
-      "a child builds a treehouse that becomes a neighborhood hub",
-      "a chef searches for rare ingredients to create a special dish",
-      "a prankster pulls off elaborate stunts, but faces consequences",
-      "a couple plans a wedding, navigating family drama",
-      "three siblings compete for a family heirloom in funny ways",
-      "a volunteer helps rebuild homes after a disaster",
-      "a mentor guides a young prodigy through tough times",
-      "a singer tries to win a talent show with an original song",
-      "a retired detective gets pulled back into a cold case",
-      "a parent and child switch bodies and gain new perspectives",
-      "a teacher organizes a school play that brings the community together",
-      "a group of friends travel abroad, encountering culture shock",
-      "a lost kitten finds its way home with help from new friends",
-      "an inventor creates a gadget that changes daily life",
-      "a young leader rallies people for an important cause",
-      "a couple struggles to balance work and personal life",
-      "a magician uncovers a real mystery behind their tricks",
-      "a team restores an old building, uncovering its history",
-      "a prodigy faces pressure to meet high expectations",
-      "a neighbor helps solve a local mystery",
-      "a group starts a band and dreams of stardom",
-      "an athlete overcomes injury to achieve a personal best",
-      "a student investigates a campus legend",
-      "a group of artists collaborate on a mural that transforms their city",
-      "a volunteer teaches music in an underserved area",
-      "a family reunites after years apart",
-      "a police officer helps a troubled youth find their path",
-      "a chef mentors young cooks in a competitive kitchen",
-      "a scientist races to solve a global crisis",
-      "a community garden helps neighbors connect",
-      "a group of hikers gets lost and must rely on each other",
-      "a new mayor faces unexpected challenges in office",
-      "a couple adopts a rescue animal and learns new lessons",
-      "a musician writes a song that inspires social change",
-      "a young activist organizes a protest for justice",
-      "a teacher helps a student believe in themselves",
-      "a startup founder pitches an idea to skeptical investors",
-      "a filmmaker documents a town's unique history",
-      "a group of kids solve puzzles to win a treasure hunt",
-      "a nurse comforts patients in a busy hospital",
-      "a team invents a device to clean up pollution",
-      "a parent volunteers at a local shelter",
-      "a librarian helps people discover new worlds through books",
-      "a coach inspires a team to never give up",
-      "a scientist discovers a new species",
-      "a young artist gets their first gallery show",
-      "a family faces a tough move but finds hope in a new place",
-      "a group of neighbors plan a block party",
-      "a student organizes a fundraiser for a good cause",
-      "newsroom staff race to cover breaking stories while competing for scoops"
+    // Narrative elements for disenfranchisement
+    const disenfranchisementWords = [
+      // Verbs
+      "exclude", "manipulate", "obstruct", "silence", "disqualify",
+      "restrict", "displace", "purge", "alienate", "divide",
+      "undercount", "deny", "limit", "intimidate", "segregate",
+      "marginalize", "dilute", "withdraw", "erase", "censor",
+
+      // Conjunctions / Linking words
+      "because", "while", "although", "even though", "if", "so",
+      "but", "yet", "and", "or", "for", "however",
+
+      // Nouns / Concepts
+      "suppression", "gerrymandering", "barrier", "inequality", "exclusion",
+      "voter ID", "poll tax", "redlining", "apartheid", "disempowerment",
+      "injustice", "minority rule", "corruption", "felony disenfranchisement",
+      "abstention", "access denied", "systemic bias", "obstacles",
+      "vote dilution", "unfair districts", "lack of representation",
+      "absentee barriers", "citizenship test", "provisional ballot",
+      "closed polls", "language barrier", "malapportionment", "lost vote",
+      "boycott", "apathy", "underrepresentation", "political isolation",
+      "unheard voices"
+      // Add more as needed
     ];
 
-    let currentSnippet = "";
-    let nextSnippet = "";
-    let textFade = 1;
-    let textLastChange = Date.now();
-    let textStatus = "visible";
-    let fontSize = 40;
-    let lastTextTrigger = Date.now();
-    let colorRecognitionPaused = false;
-    let lastClusterHash = "";
-
-    function pickSnippet(exclude = []) {
-      let available = popCultureSnippets.filter(s => !exclude.includes(s));
-      if (available.length === 0) return popCultureSnippets[Math.floor(Math.random() * popCultureSnippets.length)];
-      return available[Math.floor(Math.random() * available.length)];
-    }
-
-    // --- Color cluster functions ---
+    // Expanded color sampling (keep original logic for greenish/cyan/yellowish)
     function isWideRangeColor(r, g, b) {
       r /= 255; g /= 255; b /= 255;
       let max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -188,6 +96,7 @@
       return (greenish || yellowish || cyanish) && bright && colorful;
     }
 
+    // Cluster detection with flag for clusters moving out of view
     function clusterColorPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
@@ -222,18 +131,17 @@
                 }
               }
             }
+            // Only keep clusters fully visible
             if (
               cluster.length > 18 &&
               minX > 0 && maxX < width - 1 &&
               minY > 0 && maxY < height - 1
             ) {
               clusters.push(cluster);
-              break; // Only keep one cluster
+              if (clusters.length >= MAX_CLUSTERS) return clusters; // Limit to 5 clusters
             }
           }
-          if (clusters.length > 0) break;
         }
-        if (clusters.length > 0) break;
       }
       return clusters;
     }
@@ -253,65 +161,230 @@
         minX = Math.min(minX, x); maxX = Math.max(maxX, x);
         minY = Math.min(minY, y); maxY = Math.max(maxY, y);
       }
-      return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length);
+      return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length); // area proxy
     }
 
-    function updateSnippetForCluster(clusterCenter, clusterSize) {
-      // Only one text shown at a time, centered on cluster
-      fontSize = Math.round(28 + Math.max(0, Math.min(1, (clusterSize - 120) / (politicalCanvas.width * 0.13))) * (90 - 28));
-      // Pick a new snippet if needed
-      // Hash cluster center and size to detect change
-      let hash = `${Math.round(clusterCenter[0])},${Math.round(clusterCenter[1])},${Math.round(clusterSize)}`;
-      if (hash !== lastClusterHash) {
-        nextSnippet = pickSnippet([currentSnippet]);
-        textFade = 0;
-        textLastChange = Date.now();
-        lastClusterHash = hash;
+    function pickWord() {
+      return disenfranchisementWords[Math.floor(Math.random() * disenfranchisementWords.length)];
+    }
+
+    // Cluster management with fade-in/fade-out
+    let clusterStates = [];
+    let prevClusterCenters = [];
+
+    function updateClusters(currentCenters, currentSizes) {
+      // Match clusters by proximity
+      let newStates = [];
+      let matched = new Set();
+      for (let i = 0; i < currentCenters.length; i++) {
+        let center = currentCenters[i];
+        let size = currentSizes[i];
+        let foundIdx = -1, minDist = Infinity;
+        for (let j = 0; j < clusterStates.length; j++) {
+          let prev = clusterStates[j];
+          if (prev.status === "disappearing") continue;
+          let dist = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
+          if (dist < 60 && dist < minDist && !matched.has(j)) {
+            minDist = dist;
+            foundIdx = j;
+          }
+        }
+        if (foundIdx !== -1) {
+          // Existing cluster: update center & size
+          let prev = clusterStates[foundIdx];
+          newStates.push({
+            ...prev,
+            center,
+            size,
+            appearStart: prev.appearStart,
+            status: "visible",
+            disappearStart: null,
+            lastUpdate: Date.now()
+          });
+          matched.add(foundIdx);
+        } else {
+          // New cluster: fade in
+          newStates.push({
+            center,
+            size,
+            word: pickWord(),
+            nextWord: pickWord(),
+            wordFade: 1,
+            wordLastChange: Date.now(),
+            appearStart: Date.now(),
+            status: "appearing",
+            disappearStart: null,
+            depth: Math.random(),
+            lastUpdate: Date.now()
+          });
+        }
       }
+
+      // Existing clusters not matched: fade out
+      for (let j = 0; j < clusterStates.length; j++) {
+        if (matched.has(j)) continue;
+        let prev = clusterStates[j];
+        if (prev.status === "disappearing" && prev.disappearStart && Date.now() - prev.disappearStart < DISAPPEAR_DURATION) {
+          // Continue fading out
+          newStates.push(prev);
+        } else if (prev.status !== "disappearing") {
+          // Start fade out
+          newStates.push({
+            ...prev,
+            status: "disappearing",
+            disappearStart: Date.now()
+          });
+        }
+      }
+      // Limit to MAX_CLUSTERS
+      clusterStates = newStates.slice(0, MAX_CLUSTERS);
     }
 
-    function updateTextTransition() {
+    function updateWordTransitions() {
       const now = Date.now();
-      if (textFade < 1) {
-        let t = (now - textLastChange) / FADE_DURATION;
-        textFade = Math.min(1, t);
-        if (textFade >= 1) {
-          currentSnippet = nextSnippet;
+      for (let cluster of clusterStates) {
+        // Fade-in new cluster
+        if (cluster.status === "appearing" && cluster.appearStart) {
+          let t = (now - cluster.appearStart) / APPEAR_DURATION;
+          cluster.appearProgress = Math.min(1, t);
+          if (cluster.appearProgress >= 1) {
+            cluster.status = "visible";
+            cluster.appearStart = null;
+            cluster.appearProgress = 1;
+          }
+        }
+        // Fade-out disappearing cluster
+        if (cluster.status === "disappearing" && cluster.disappearStart) {
+          let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
+          cluster.disappearProgress = Math.min(1, t);
+        }
+        // Word fade (for changing words)
+        if (cluster.wordFade < 1) {
+          let t = (now - cluster.wordLastChange) / FADE_DURATION;
+          cluster.wordFade = Math.min(1, t);
+          if (cluster.wordFade >= 1) {
+            cluster.word = cluster.nextWord;
+          }
         }
       }
     }
 
-    function drawColorOverlay(ctx, center, size) {
-      updateTextTransition();
-      ctx.save();
-      let x = center[0], y = center[1];
-      let alpha = 0.93;
-      let snippet, snippetAlpha;
-      if (textFade < 1) {
-        snippet = nextSnippet;
-        snippetAlpha = alpha * textFade * 0.93 + 0.07 * alpha;
-      } else {
-        snippet = currentSnippet;
-        snippetAlpha = alpha;
+    function triggerWordChanges() {
+      for (let cluster of clusterStates) {
+        cluster.nextWord = pickWord();
+        cluster.wordFade = 0;
+        cluster.wordLastChange = Date.now();
+        cluster.depth = Math.random();
       }
-      snippetAlpha = Math.max(0.2, snippetAlpha);
+    }
 
-      ctx.translate(x, y);
-      ctx.font = `bold ${fontSize}px Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.shadowColor = "#FF4141";
-      ctx.shadowBlur = 23;
-      ctx.globalAlpha = snippetAlpha;
-      ctx.fillStyle = "#FF4141";
-      let lines = snippet.split('\n');
-      let lineHeight = fontSize * 1.28;
-      let baseY = -((lines.length - 1) * lineHeight) / 2;
-      for (let li = 0; li < lines.length; li++) {
-        ctx.fillText(lines[li], 0, baseY + li * lineHeight);
+    // Spline for smooth curves
+    function getSplinePoints(points, tension = 0.5, numOfSeg = 18) {
+      if (points.length < 2) return points;
+      let result = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        let p0 = points[i === 0 ? i : i - 1];
+        let p1 = points[i];
+        let p2 = points[i + 1];
+        let p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+        for (let t = 0; t < numOfSeg; t++) {
+          let st = t / numOfSeg;
+          let x = catmullRom(p0[0], p1[0], p2[0], p3[0], st, tension);
+          let y = catmullRom(p0[1], p1[1], p2[1], p3[1], st, tension);
+          result.push([x, y]);
+        }
+      }
+      return result;
+    }
+
+    function catmullRom(p0, p1, p2, p3, t, tension) {
+      let v0 = (p2 - p0) * tension;
+      let v1 = (p3 - p1) * tension;
+      return (2 * p1 - 2 * p2 + v0 + v1) * t * t * t
+           + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t * t
+           + v0 * t
+           + p1;
+    }
+
+    function drawColorOverlays(ctx, clusters) {
+      updateWordTransitions();
+      ctx.save();
+      // Draw smooth spline if enough clusters
+      let centers = clusters.filter(c => c.status !== "disappearing" || (c.status === "disappearing" && c.disappearProgress < 1)).map(c => c.center);
+      if (centers.length >= 2) {
+        let spline = getSplinePoints(centers, 0.5, 18);
+        ctx.beginPath();
+        ctx.strokeStyle = "#FF4141";
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = "#FF4141";
+        ctx.shadowBlur = 16;
+        for (let i = 0; i < spline.length - 1; i++) {
+          let [x1, y1] = spline[i];
+          let [x2, y2] = spline[i + 1];
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        // Fade lines based on min cluster alpha (to avoid flicker)
+        let minAlpha = 1.0;
+        for (let c of clusters) {
+          let alpha = 1.0;
+          if (c.status === "appearing") alpha = c.appearProgress || 0;
+          if (c.status === "disappearing") alpha = 1 - (c.disappearProgress || 0);
+          minAlpha = Math.min(minAlpha, alpha);
+        }
+        ctx.globalAlpha = 0.38 + minAlpha * 0.3;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+      // Words at cluster centers, distributed and scaled by size (proximity)
+      for (let i = 0; i < clusters.length; i++) {
+        let cluster = clusters[i];
+        let [x, y] = cluster.center;
+        let z = cluster.depth || 0;
+        let size = cluster.size;
+        let minFont = 18, maxFont = 80;
+        let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
+        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
+        let minAlpha = 0.52, maxAlpha = 0.88;
+        let alpha = maxAlpha - z * (maxAlpha - minAlpha);
+
+        // Fade-in or fade-out for clusters
+        let appearAlpha = 1.0;
+        if (cluster.status === "appearing") appearAlpha = cluster.appearProgress || 0;
+        if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
+        alpha *= appearAlpha;
+
+        // Fade word transitions
+        let word, wordAlpha;
+        if (cluster.wordFade < 1) {
+          word = cluster.nextWord;
+          wordAlpha = alpha * cluster.wordFade * 0.85 + 0.15 * alpha;
+        } else {
+          word = cluster.word;
+          wordAlpha = alpha;
+        }
+
+        // Prevent flicker by smoothly fading in/out and keeping alpha above a minimum threshold
+        wordAlpha = Math.max(0.14, wordAlpha);
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = "#FF4141";
+        ctx.shadowBlur = 20;
+
+        ctx.globalAlpha = wordAlpha;
+        ctx.fillStyle = "#FF4141";
+        ctx.fillText(word, 0, 0);
+
+        ctx.restore();
       }
       ctx.restore();
     }
+
+    let lastWordTrigger = Date.now();
 
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -322,40 +395,45 @@
         ctx.filter = "blur(1.5px) brightness(1.18) contrast(1.18)";
         ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
         ctx.filter = "none";
+        let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
+        let data = frame.data;
+        let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
+        let clusterCenters = clusters.map(getClusterCenter);
+        let clusterAreaSizes = clusters.map(getClusterSize);
 
-        let center = [politicalCanvas.width/2, politicalCanvas.height/2];
-        let size = 150;
-        // Only update cluster by color if not paused
-        if (!colorRecognitionPaused) {
-          let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
-          let data = frame.data;
-          let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
-          if (clusters.length) {
-            center = getClusterCenter(clusters[0]);
-            size = getClusterSize(clusters[0]);
-            updateSnippetForCluster(center, size);
+        // Cluster fade-in/fade-out management
+        updateClusters(clusterCenters, clusterAreaSizes);
+
+        // If clusters have changed or moved out, update instantly (no flicker, slow transition)
+        let centersChanged = false;
+        if (prevClusterCenters.length !== clusterCenters.length) {
+          centersChanged = true;
+        } else {
+          for (let i = 0; i < clusterCenters.length; i++) {
+            if (
+              Math.abs(clusterCenters[i][0] - (prevClusterCenters[i]?.[0] || 0)) > 80 ||
+              Math.abs(clusterCenters[i][1] - (prevClusterCenters[i]?.[1] || 0)) > 80
+            ) {
+              centersChanged = true;
+              break;
+            }
           }
         }
-        drawColorOverlay(ctx, center, size);
+        prevClusterCenters = clusterCenters.slice();
+
+        if (centersChanged) {
+          // Instead of instant word change, let clusters fade in/out
+          // Only trigger next words for clusters that remain visible
+        }
+
+        if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
+          triggerWordChanges();
+          lastWordTrigger = Date.now();
+        }
+
+        drawColorOverlays(ctx, clusterStates);
       }
       requestAnimationFrame(draw);
-    }
-
-    // Handle periodic text changes and pause/resume color recognition
-    function textAdvanceLoop() {
-      let now = Date.now();
-      let timeSinceLast = now - lastTextTrigger;
-      if (timeSinceLast >= TEXT_DURATION) {
-        colorRecognitionPaused = true;
-        nextSnippet = pickSnippet([currentSnippet]);
-        textFade = 0;
-        textLastChange = now;
-        lastTextTrigger = now;
-        setTimeout(() => {
-          colorRecognitionPaused = false;
-        }, FADE_DURATION); // Unpause after fade in
-      }
-      setTimeout(textAdvanceLoop, 100);
     }
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
@@ -365,11 +443,7 @@
         video.addEventListener('loadedmetadata', () => {
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
-          currentSnippet = pickSnippet();
-          nextSnippet = currentSnippet;
-          textFade = 1;
           draw();
-          textAdvanceLoop();
         });
       })
       .catch(() => {
