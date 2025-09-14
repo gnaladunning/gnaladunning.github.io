@@ -39,36 +39,25 @@
     const video = document.getElementById('videoElement');
     const ctx = politicalCanvas.getContext('2d');
 
-    // AR Word/Cluster settings (slower for smooth transitions)
-    const WORD_INTERVAL = 50000;  // ms per word (slower for readability)
+    // AR Paragraph/Cluster settings (slower for smooth transitions)
+    const PARAGRAPH_INTERVAL = 50000;  // ms per paragraph (slower for readability)
     const FADE_DURATION = 30000;  // ms for fade transition (slower for readability)
-    const APPEAR_DURATION = 30000; // ms for new cluster/word fade-in
-    const DISAPPEAR_DURATION = 30000; // ms for cluster/word fade-out
+    const APPEAR_DURATION = 30000; // ms for new cluster/paragraph fade-in
+    const DISAPPEAR_DURATION = 30000; // ms for cluster/paragraph fade-out
     const MAX_CLUSTERS = 5;
 
-    // Narrative elements for disenfranchisement
-    const disenfranchisementWords = [
-      // Verbs
-      "exclude", "manipulate", "obstruct", "silence", "disqualify",
-      "restrict", "displace", "purge", "alienate", "divide",
-      "undercount", "deny", "limit", "intimidate", "segregate",
-      "marginalize", "dilute", "withdraw", "erase", "censor",
-
-      // Conjunctions / Linking words
-      "because", "while", "although", "even though", "if", "so",
-      "but", "yet", "and", "or", "for", "however",
-
-      // Nouns / Concepts
-      "suppression", "gerrymandering", "barrier", "inequality", "exclusion",
-      "voter ID", "poll tax", "redlining", "apartheid", "disempowerment",
-      "injustice", "minority rule", "corruption", "felony disenfranchisement",
-      "abstention", "access denied", "systemic bias", "obstacles",
-      "vote dilution", "unfair districts", "lack of representation",
-      "absentee barriers", "citizenship test", "provisional ballot",
-      "closed polls", "language barrier", "malapportionment", "lost vote",
-      "boycott", "apathy", "underrepresentation", "political isolation",
-      "unheard voices"
-      // Add more as needed
+    // Lowercase, multiline movie and TV show descriptions (no proper names or titles)
+    const descriptions = [
+      `a group of friends discover strange events in their quiet town, uncovering secrets and facing challenges together as they navigate the mysteries hidden beneath the surface.`,
+      `in a dystopian future, individuals fight for survival and meaning while society watches their every move, exploring themes of freedom, control, and the human spirit.`,
+      `an ordinary family deals with extraordinary circumstances, learning the importance of trust and resilience as they face unexpected obstacles in their daily lives.`,
+      `a detective pursues a complex case that gradually blurs the boundaries between right and wrong, leading to revelations about loyalty, justice, and the power of truth.`,
+      `a young person embarks on a journey of self-discovery, encountering allies and adversaries, and learning that courage can take many forms in a world full of uncertainty.`,
+      `a pair of travelers wander through unfamiliar lands, meeting people whose stories change their own, and realizing that every journey leaves a mark on the soul.`,
+      `a small community comes together during a crisis, finding hope and connection in moments of adversity, and rediscovering what it means to belong.`,
+      `an ambitious artist struggles to balance dreams and reality, facing setbacks and moments of inspiration as creativity becomes both a refuge and a challenge.`,
+      `a scientist makes a breakthrough that could alter the future, but must grapple with ethical dilemmas and the consequences of knowledge that cannot be unlearned.`,
+      `siblings reunite after years apart, confronting old wounds and forging new bonds as they navigate the complexities of family, forgiveness, and change.`
     ];
 
     // Expanded color sampling (keep original logic for greenish/cyan/yellowish)
@@ -164,8 +153,8 @@
       return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length); // area proxy
     }
 
-    function pickWord() {
-      return disenfranchisementWords[Math.floor(Math.random() * disenfranchisementWords.length)];
+    function pickDescription() {
+      return descriptions[Math.floor(Math.random() * descriptions.length)];
     }
 
     // Cluster management with fade-in/fade-out
@@ -207,10 +196,10 @@
           newStates.push({
             center,
             size,
-            word: pickWord(),
-            nextWord: pickWord(),
-            wordFade: 1,
-            wordLastChange: Date.now(),
+            description: pickDescription(),
+            nextDescription: pickDescription(),
+            descFade: 1,
+            descLastChange: Date.now(),
             appearStart: Date.now(),
             status: "appearing",
             disappearStart: null,
@@ -240,7 +229,7 @@
       clusterStates = newStates.slice(0, MAX_CLUSTERS);
     }
 
-    function updateWordTransitions() {
+    function updateDescriptionTransitions() {
       const now = Date.now();
       for (let cluster of clusterStates) {
         // Fade-in new cluster
@@ -258,22 +247,22 @@
           let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
           cluster.disappearProgress = Math.min(1, t);
         }
-        // Word fade (for changing words)
-        if (cluster.wordFade < 1) {
-          let t = (now - cluster.wordLastChange) / FADE_DURATION;
-          cluster.wordFade = Math.min(1, t);
-          if (cluster.wordFade >= 1) {
-            cluster.word = cluster.nextWord;
+        // Description fade (for changing descriptions)
+        if (cluster.descFade < 1) {
+          let t = (now - cluster.descLastChange) / FADE_DURATION;
+          cluster.descFade = Math.min(1, t);
+          if (cluster.descFade >= 1) {
+            cluster.description = cluster.nextDescription;
           }
         }
       }
     }
 
-    function triggerWordChanges() {
+    function triggerDescriptionChanges() {
       for (let cluster of clusterStates) {
-        cluster.nextWord = pickWord();
-        cluster.wordFade = 0;
-        cluster.wordLastChange = Date.now();
+        cluster.nextDescription = pickDescription();
+        cluster.descFade = 0;
+        cluster.descLastChange = Date.now();
         cluster.depth = Math.random();
       }
     }
@@ -307,7 +296,7 @@
     }
 
     function drawColorOverlays(ctx, clusters) {
-      updateWordTransitions();
+      updateDescriptionTransitions();
       ctx.save();
       // Draw smooth spline if enough clusters
       let centers = clusters.filter(c => c.status !== "disappearing" || (c.status === "disappearing" && c.disappearProgress < 1)).map(c => c.center);
@@ -336,16 +325,16 @@
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
-      // Words at cluster centers, distributed and scaled by size (proximity)
+      // Paragraphs at cluster centers, distributed and scaled by size (proximity)
       for (let i = 0; i < clusters.length; i++) {
         let cluster = clusters[i];
         let [x, y] = cluster.center;
         let z = cluster.depth || 0;
         let size = cluster.size;
-        let minFont = 18, maxFont = 80;
+        let minFont = 18, maxFont = 28;
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
         let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
-        let minAlpha = 0.52, maxAlpha = 0.88;
+        let minAlpha = 0.46, maxAlpha = 0.92;
         let alpha = maxAlpha - z * (maxAlpha - minAlpha);
 
         // Fade-in or fade-out for clusters
@@ -354,18 +343,18 @@
         if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
         alpha *= appearAlpha;
 
-        // Fade word transitions
-        let word, wordAlpha;
-        if (cluster.wordFade < 1) {
-          word = cluster.nextWord;
-          wordAlpha = alpha * cluster.wordFade * 0.85 + 0.15 * alpha;
+        // Fade description transitions
+        let desc, descAlpha;
+        if (cluster.descFade < 1) {
+          desc = cluster.nextDescription;
+          descAlpha = alpha * cluster.descFade * 0.85 + 0.15 * alpha;
         } else {
-          word = cluster.word;
-          wordAlpha = alpha;
+          desc = cluster.description;
+          descAlpha = alpha;
         }
 
         // Prevent flicker by smoothly fading in/out and keeping alpha above a minimum threshold
-        wordAlpha = Math.max(0.14, wordAlpha);
+        descAlpha = Math.max(0.14, descAlpha);
 
         ctx.save();
         ctx.translate(x, y);
@@ -374,17 +363,23 @@
         ctx.textBaseline = "middle";
         ctx.shadowColor = "#FF4141";
         ctx.shadowBlur = 20;
-
-        ctx.globalAlpha = wordAlpha;
+        ctx.globalAlpha = descAlpha;
         ctx.fillStyle = "#FF4141";
-        ctx.fillText(word, 0, 0);
+
+        // Draw multiline paragraph
+        const lines = desc.split('\n').flatMap(par => par.split(/(?<=.{60,80})\s/)); // Wrap long lines
+        let lineHeight = fontSize * 1.3;
+        let totalHeight = lineHeight * lines.length;
+        for (let j = 0; j < lines.length; j++) {
+          ctx.fillText(lines[j], 0, (j - (lines.length-1)/2) * lineHeight);
+        }
 
         ctx.restore();
       }
       ctx.restore();
     }
 
-    let lastWordTrigger = Date.now();
+    let lastParagraphTrigger = Date.now();
 
     function draw() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -422,13 +417,13 @@
         prevClusterCenters = clusterCenters.slice();
 
         if (centersChanged) {
-          // Instead of instant word change, let clusters fade in/out
-          // Only trigger next words for clusters that remain visible
+          // Instead of instant description change, let clusters fade in/out
+          // Only trigger next descriptions for clusters that remain visible
         }
 
-        if (Date.now() - lastWordTrigger >= WORD_INTERVAL) {
-          triggerWordChanges();
-          lastWordTrigger = Date.now();
+        if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
+          triggerDescriptionChanges();
+          lastParagraphTrigger = Date.now();
         }
 
         drawColorOverlays(ctx, clusterStates);
