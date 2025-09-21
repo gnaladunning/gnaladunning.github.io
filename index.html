@@ -151,7 +151,17 @@
     let prevClusterCenters = [];
 
     // --- CLUSTER STATIC POSITION LOGIC ---
-    function updateClusters(currentCenters, currentSizes) {
+    function clustersAreDifferent(currentCenters, prevCenters) {
+      if (currentCenters.length !== prevCenters.length) return true;
+      for (let i = 0; i < currentCenters.length; i++) {
+        if (!prevCenters[i] || Math.abs(currentCenters[i][0] - prevCenters[i][0]) > 25 || Math.abs(currentCenters[i][1] - prevCenters[i][1]) > 25) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function updateClusters(currentCenters, currentSizes, forceRefreshDescriptions = false) {
       // Match clusters by proximity, but snap text positions and keep static until refresh
       let newStates = [];
       let matched = new Set();
@@ -178,7 +188,12 @@
             appearStart: prev.appearStart,
             status: "visible",
             disappearStart: null,
-            lastUpdate: Date.now()
+            lastUpdate: Date.now(),
+            // Refresh text if forceRefreshDescriptions
+            description: forceRefreshDescriptions ? pickDescription() : prev.description,
+            nextDescription: forceRefreshDescriptions ? pickDescription() : prev.nextDescription,
+            descFade: 1,
+            descLastChange: Date.now()
           });
           matched.add(foundIdx);
         } else {
@@ -230,25 +245,18 @@
           let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
           cluster.disappearProgress = Math.min(1, t);
         }
-        if (cluster.descFade < 1) {
-          let t = (now - cluster.descLastChange) / FADE_DURATION;
-          cluster.descFade = Math.min(1, t);
-          if (cluster.descFade >= 1) {
-            cluster.description = cluster.nextDescription;
-          }
-        }
+        // Remove fade logic for solid text
+        cluster.descFade = 1;
       }
     }
 
+    // Remove fade transition for solid text
     function triggerDescriptionChanges() {
-      // Fix: when refreshing, recalculate static text positions for clusters
       for (let cluster of clusterStates) {
         cluster.nextDescription = pickDescription();
-        cluster.descFade = 0;
+        cluster.descFade = 1;
         cluster.descLastChange = Date.now();
         cluster.depth = Math.random();
-        // Optionally allow description to change position only at refresh
-        // Keep center unchanged unless clusters themselves disappear
       }
     }
 
@@ -325,34 +333,25 @@
         // --- FONT SIZE LOGIC ---
         let minFont = 32, maxFont = 72;
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
-        // Remove per-frame random offset! Use fixed value based on cluster
         let randomFontOffset = ((cluster.center[0] + cluster.center[1]) % 12) - 6;
         let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5) + randomFontOffset);
 
-        let minAlpha = 0.46, maxAlpha = 0.92;
-        let alpha = maxAlpha - z * (maxAlpha - minAlpha);
+        // Opaque solid text
+        let alpha = 1.0;
 
         let appearAlpha = 1.0;
         if (cluster.status === "appearing") appearAlpha = cluster.appearProgress || 0;
         if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
         alpha *= appearAlpha;
 
-        let desc, descAlpha;
-        if (cluster.descFade < 1) {
-          desc = cluster.nextDescription;
-          descAlpha = alpha * cluster.descFade * 0.85 + 0.15 * alpha;
-        } else {
-          desc = cluster.description;
-          descAlpha = alpha;
-        }
-        descAlpha = Math.max(0.14, descAlpha);
+        let desc = cluster.description;
+        let descAlpha = alpha;
 
         ctx.save();
 
         // -- STATIC CENTRAL LOCATION LOGIC --
         let centerX = politicalCanvas.width / 2;
         let centerY = politicalCanvas.height / 2;
-        // Move 50% toward center from cluster center; now use fixed offset from original center
         let staticX = x * 0.5 + centerX * 0.5;
         let staticY = y * 0.5 + centerY * 0.5;
         ctx.translate(staticX, staticY);
@@ -419,15 +418,24 @@
           clusterCenters = clusters.map(getClusterCenter);
           clusterAreaSizes = clusters.map(getClusterSize);
 
-          // Only update clusters when paragraph refreshes, keep text positions static between updates
-          if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
-            updateClusters(clusterCenters, clusterAreaSizes);
+          // Check if new clusters are discovered
+          let forceRefresh = clustersAreDifferent(clusterCenters, prevClusterCenters);
+          if (forceRefresh && clusterCenters.length > 0) {
+            updateClusters(clusterCenters, clusterAreaSizes, true); // force text refresh
+            triggerDescriptionChanges();
+            lastParagraphTrigger = Date.now();
+          } else if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
+            updateClusters(clusterCenters, clusterAreaSizes, true); // periodic refresh
             triggerDescriptionChanges();
             lastParagraphTrigger = Date.now();
           } else if (clusterStates.length === 0) {
             // First time, initialize clusters
-            updateClusters(clusterCenters, clusterAreaSizes);
+            updateClusters(clusterCenters, clusterAreaSizes, true);
+            triggerDescriptionChanges();
+          } else {
+            updateClusters(clusterCenters, clusterAreaSizes, false);
           }
+          prevClusterCenters = clusterCenters;
         }
 
         drawColorOverlays(ctx, clusterStates);
