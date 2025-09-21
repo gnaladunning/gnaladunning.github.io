@@ -325,28 +325,46 @@
     }
 
     function pushClusterTexts() {
-      // Collect current visible texts
       let currentTexts = clusterStates.map(c => c.description);
       for (let txt of currentTexts) {
         if (txt && lastClusterTexts[lastClusterTexts.length-1] !== txt) {
           lastClusterTexts.push(txt);
         }
       }
-      // Keep only last N
       if (lastClusterTexts.length > LAST_TEXT_HISTORY) {
         lastClusterTexts = lastClusterTexts.slice(-LAST_TEXT_HISTORY);
       }
     }
 
-    // --- DRAWING ---
+    // --- STATIC TEXT DRAWING (REVISED for bounds and flicker elimination) ---
+    function getMaxFontSizeForText(lines, canvasWidth, canvasHeight, padding = 24) {
+      // Find max font size so that lines fit inside canvas
+      let maxFontSize = 80, minFontSize = 20, fontSize = maxFontSize;
+      let fits = false;
+      while (!fits && fontSize >= minFontSize) {
+        ctx.save();
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        let lineWidths = lines.map(l => ctx.measureText(l).width);
+        let maxLineWidth = Math.max(...lineWidths);
+        let lineHeight = fontSize * 1.3;
+        let totalHeight = lineHeight * lines.length;
+        fits = maxLineWidth + padding * 2 <= canvasWidth && totalHeight + padding * 2 <= canvasHeight;
+        ctx.restore();
+        if (!fits) fontSize -= 2;
+      }
+      return Math.max(fontSize, minFontSize);
+    }
+
     function drawStaticText(ctx, text) {
       ctx.save();
-      let centerX = politicalCanvas.width / 2;
-      let centerY = politicalCanvas.height / 2;
+      let canvasWidth = politicalCanvas.width;
+      let canvasHeight = politicalCanvas.height;
+      let padding = Math.round(canvasWidth * 0.06);
 
-      // Font size logic
-      let minFont = 36, maxFont = 80;
-      let fontSize = Math.round(minFont + Math.random() * (maxFont - minFont));
+      // Center and fit within bounds
+      let lines = wrapTextWords(text, 9, 5);
+      let fontSize = getMaxFontSizeForText(lines, canvasWidth, canvasHeight, padding);
+
       ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -355,9 +373,14 @@
       ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
 
-      const lines = wrapTextWords(text, 9, 5);
+      // Calculate total height
       let lineHeight = fontSize * 1.3;
       let totalHeight = lineHeight * lines.length;
+
+      let centerX = canvasWidth / 2;
+      let centerY = canvasHeight / 2;
+
+      // Draw all lines centered and with no movement/flicker
       for (let j = 0; j < lines.length; j++) {
         ctx.fillText(lines[j], centerX, centerY + (j - (lines.length-1)/2) * lineHeight);
       }
@@ -391,7 +414,7 @@
 
         let minFont = 32, maxFont = 72;
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
-        let randomFontOffset = ((cluster.center[0] + cluster.center[1]) % 12) - 6;
+        let randomFontOffset = 0; // No movement/flicker for overlays either
         let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5) + randomFontOffset);
 
         let alpha = 1.0;
@@ -404,7 +427,6 @@
         let descAlpha = alpha;
 
         ctx.save();
-        // -- STATIC CENTRAL LOCATION LOGIC --
         let centerX = politicalCanvas.width / 2;
         let centerY = politicalCanvas.height / 2;
         let staticX = x * 0.5 + centerX * 0.5;
@@ -421,7 +443,6 @@
 
         const lines = wrapTextWords(desc, 9, 5);
         let lineHeight = fontSize * 1.3;
-        let totalHeight = lineHeight * lines.length;
         for (let j = 0; j < lines.length; j++) {
           ctx.fillText(lines[j], 0, (j - (lines.length-1)/2) * lineHeight);
         }
@@ -431,15 +452,20 @@
     }
 
     // --- MAIN DRAW LOOP ---
+    // All static text states are locked during its display, so no flicker/movement.
+    let staticCanvasFrame = null;
     function draw() {
       const now = Date.now();
 
       // Check static text trigger
       if (!staticTextActive && now >= staticTextNextTrigger && lastClusterTexts.length > 0) {
-        // Pick random from lastClusterTexts
         staticTextValue = lastClusterTexts[Math.floor(Math.random() * lastClusterTexts.length)];
         staticTextActive = true;
         staticTextStartTime = now;
+        // Draw static text once and save the frame
+        ctx.clearRect(0, 0, politicalCanvas.width, politicalCanvas.height);
+        drawStaticText(ctx, staticTextValue);
+        staticCanvasFrame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
       }
 
       // End static text after duration
@@ -447,23 +473,31 @@
         staticTextActive = false;
         staticTextValue = "";
         staticTextNextTrigger = now + getRandomStaticTextDelay();
+        staticCanvasFrame = null;
       }
 
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Resize canvas if video frame changes
         if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
+          staticCanvasFrame = null; // Clear static frame if canvas size changes
         }
+
+        // Draw camera frame
         ctx.filter = "blur(1.5px) brightness(1.18) contrast(1.18)";
         ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
         ctx.filter = "none";
-        let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
-        let data = frame.data;
-        let clusters;
-        let clusterCenters, clusterAreaSizes;
 
-        // Only update clusters if not showing static text
-        if (!staticTextActive) {
+        if (staticTextActive && staticCanvasFrame) {
+          // Overlay saved static text frame, no flicker or movement
+          ctx.putImageData(staticCanvasFrame, 0, 0);
+        } else {
+          let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
+          let data = frame.data;
+          let clusters;
+          let clusterCenters, clusterAreaSizes;
+
           clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
           clusterCenters = clusters.map(getClusterCenter);
           clusterAreaSizes = clusters.map(getClusterSize);
@@ -485,18 +519,11 @@
           }
           prevClusterCenters = clusterCenters;
 
-          // Keep rolling history of last cluster texts
           pushClusterTexts();
-        }
-
-        ctx.save();
-        // If static text is active, draw it centered and skip overlays
-        if (staticTextActive && staticTextValue) {
-          drawStaticText(ctx, staticTextValue);
-        } else {
+          ctx.save();
           drawColorOverlays(ctx, clusterStates);
+          ctx.restore();
         }
-        ctx.restore();
       }
       requestAnimationFrame(draw);
     }
@@ -520,12 +547,14 @@
     window.addEventListener('resize', () => {
       politicalCanvas.width = window.innerWidth;
       politicalCanvas.height = window.innerHeight;
+      staticCanvasFrame = null;
     });
 
     window.addEventListener('orientationchange', () => {
       setTimeout(() => {
         politicalCanvas.width = window.innerWidth;
         politicalCanvas.height = window.innerHeight;
+        staticCanvasFrame = null;
       }, 500);
     });
   </script>
