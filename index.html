@@ -340,9 +340,17 @@
         let [x, y] = cluster.center;
         let z = cluster.depth || 0;
         let size = cluster.size;
-        let minFont = 18, maxFont = 28;
+
+        // --- FONT SIZE LOGIC - bigger and more varied ---
+        // font size scales from 32px to 72px (previously: 18-28px)
+        // randomize slightly for variety
+        let minFont = 32, maxFont = 72;
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
-        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
+        // Add a random offset for extra variation
+        let randomFontOffset = Math.random() * 12 - 6; // -6..+6
+        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5) + randomFontOffset);
+
+        // --- ALPHA LOGIC ---
         let minAlpha = 0.46, maxAlpha = 0.92;
         let alpha = maxAlpha - z * (maxAlpha - minAlpha);
 
@@ -371,9 +379,11 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.globalAlpha = descAlpha;
-        ctx.fillStyle = "#FF4141";
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
+
+        // --- TEXT COLOUR: BLACK ---
+        ctx.fillStyle = "#000000";
+        ctx.shadowColor = "white";
+        ctx.shadowBlur = 10;
 
         // Draw wrapped multiline paragraph (at least 5 words per line)
         const lines = wrapTextWords(desc, 9, 5);
