@@ -295,6 +295,25 @@
            + p1;
     }
 
+    // Multiline text wrapping (at least 5 words per line)
+    function wrapTextWords(text, maxWordsPerLine = 9, minWordsPerLine = 5) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let i = 0;
+      while (i < words.length) {
+        let lineWords = words.slice(i, i + maxWordsPerLine);
+        // Ensure at least minWordsPerLine unless it's the last line
+        if (lineWords.length < minWordsPerLine && i + maxWordsPerLine < words.length) {
+          lineWords = words.slice(i, i + minWordsPerLine);
+          i += minWordsPerLine;
+        } else {
+          i += lineWords.length;
+        }
+        lines.push(lineWords.join(' '));
+      }
+      return lines;
+    }
+
     function drawColorOverlays(ctx, clusters) {
       updateDescriptionTransitions();
       ctx.save();
@@ -305,23 +324,13 @@
         ctx.beginPath();
         ctx.strokeStyle = "#FF4141";
         ctx.lineWidth = 2.5;
-        ctx.shadowColor = "#FF4141";
-        ctx.shadowBlur = 16;
+        ctx.globalAlpha = 0.38;
         for (let i = 0; i < spline.length - 1; i++) {
           let [x1, y1] = spline[i];
           let [x2, y2] = spline[i + 1];
           ctx.moveTo(x1, y1);
           ctx.lineTo(x2, y2);
         }
-        // Fade lines based on min cluster alpha (to avoid flicker)
-        let minAlpha = 1.0;
-        for (let c of clusters) {
-          let alpha = 1.0;
-          if (c.status === "appearing") alpha = c.appearProgress || 0;
-          if (c.status === "disappearing") alpha = 1 - (c.disappearProgress || 0);
-          minAlpha = Math.min(minAlpha, alpha);
-        }
-        ctx.globalAlpha = 0.38 + minAlpha * 0.3;
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
@@ -358,16 +367,16 @@
 
         ctx.save();
         ctx.translate(x, y);
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.shadowColor = "#FF4141";
-        ctx.shadowBlur = 20;
         ctx.globalAlpha = descAlpha;
         ctx.fillStyle = "#FF4141";
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
 
-        // Draw multiline paragraph
-        const lines = desc.split('\n').flatMap(par => par.split(/(?<=.{60,80})\s/)); // Wrap long lines
+        // Draw wrapped multiline paragraph (at least 5 words per line)
+        const lines = wrapTextWords(desc, 9, 5);
         let lineHeight = fontSize * 1.3;
         let totalHeight = lineHeight * lines.length;
         for (let j = 0; j < lines.length; j++) {
@@ -381,7 +390,30 @@
 
     let lastParagraphTrigger = Date.now();
 
+    // PAUSE LOGIC
+    let paused = false;
+    let pauseUntil = 0;
+    let nextPauseTime = Date.now() + getRandomPauseDelay();
+
+    function getRandomPauseDelay() {
+      // Random interval between 18s and 65s
+      return 18000 + Math.random() * 47000;
+    }
+
+    function checkPauseTrigger() {
+      const now = Date.now();
+      if (!paused && now >= nextPauseTime) {
+        paused = true;
+        pauseUntil = now + 4000; // Hold for 4 seconds
+      }
+      if (paused && now >= pauseUntil) {
+        paused = false;
+        nextPauseTime = now + getRandomPauseDelay();
+      }
+    }
+
     function draw() {
+      checkPauseTrigger();
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
           politicalCanvas.width = video.videoWidth;
@@ -392,38 +424,43 @@
         ctx.filter = "none";
         let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
         let data = frame.data;
-        let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
-        let clusterCenters = clusters.map(getClusterCenter);
-        let clusterAreaSizes = clusters.map(getClusterSize);
+        let clusters;
+        let clusterCenters, clusterAreaSizes;
 
-        // Cluster fade-in/fade-out management
-        updateClusters(clusterCenters, clusterAreaSizes);
+        if (!paused) {
+          clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
+          clusterCenters = clusters.map(getClusterCenter);
+          clusterAreaSizes = clusters.map(getClusterSize);
 
-        // If clusters have changed or moved out, update instantly (no flicker, slow transition)
-        let centersChanged = false;
-        if (prevClusterCenters.length !== clusterCenters.length) {
-          centersChanged = true;
-        } else {
-          for (let i = 0; i < clusterCenters.length; i++) {
-            if (
-              Math.abs(clusterCenters[i][0] - (prevClusterCenters[i]?.[0] || 0)) > 80 ||
-              Math.abs(clusterCenters[i][1] - (prevClusterCenters[i]?.[1] || 0)) > 80
-            ) {
-              centersChanged = true;
-              break;
+          // Cluster fade-in/fade-out management
+          updateClusters(clusterCenters, clusterAreaSizes);
+
+          // If clusters have changed or moved out, update instantly (no flicker, slow transition)
+          let centersChanged = false;
+          if (prevClusterCenters.length !== clusterCenters.length) {
+            centersChanged = true;
+          } else {
+            for (let i = 0; i < clusterCenters.length; i++) {
+              if (
+                Math.abs(clusterCenters[i][0] - (prevClusterCenters[i]?.[0] || 0)) > 80 ||
+                Math.abs(clusterCenters[i][1] - (prevClusterCenters[i]?.[1] || 0)) > 80
+              ) {
+                centersChanged = true;
+                break;
+              }
             }
           }
-        }
-        prevClusterCenters = clusterCenters.slice();
+          prevClusterCenters = clusterCenters.slice();
 
-        if (centersChanged) {
-          // Instead of instant description change, let clusters fade in/out
-          // Only trigger next descriptions for clusters that remain visible
-        }
+          if (centersChanged) {
+            // Instead of instant description change, let clusters fade in/out
+            // Only trigger next descriptions for clusters that remain visible
+          }
 
-        if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
-          triggerDescriptionChanges();
-          lastParagraphTrigger = Date.now();
+          if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
+            triggerDescriptionChanges();
+            lastParagraphTrigger = Date.now();
+          }
         }
 
         drawColorOverlays(ctx, clusterStates);
