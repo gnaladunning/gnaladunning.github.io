@@ -83,23 +83,27 @@
       return descriptions[Math.floor(Math.random() * descriptions.length)];
     }
 
-    function wrapTextWords(text, maxWordsPerLine = 9, minWordsPerLine = 5) {
+    // Paragraph-like text wrapping: 5–6 words per line, multi-line blocks
+    function wrapTextWords(text, maxWordsPerLine = 6, minWordsPerLine = 5) {
       const words = text.split(/\s+/);
       const lines = [];
       let i = 0;
       while (i < words.length) {
-        let lineWords = words.slice(i, i + maxWordsPerLine);
-        if (lineWords.length < minWordsPerLine && i + maxWordsPerLine < words.length) {
-          lineWords = words.slice(i, i + minWordsPerLine);
-          i += minWordsPerLine;
-        } else {
-          i += lineWords.length;
+        let numWords = Math.min(maxWordsPerLine, words.length - i);
+        if (numWords < minWordsPerLine && i !== 0) {
+          // Add remainder to previous line if not enough for a new line
+          lines[lines.length - 1] += ' ' + words.slice(i).join(' ');
+          break;
         }
-        lines.push(lineWords.join(' '));
+        lines.push(words.slice(i, i + numWords).join(' '));
+        i += numWords;
       }
       return lines;
     }
 
+    // --- MODIFIED: Reduce green detection range ---
+    // The hue range for greenish colors was 0.2 to 0.45 (about 72° to 162° on color wheel).
+    // Let's narrow it to 0.32 to 0.37 (about 115° to 133°), making it much more selective.
     function isWideRangeColor(r, g, b) {
       r /= 255; g /= 255; b /= 255;
       let max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -116,9 +120,14 @@
         }
         h /= 6;
       }
-      const greenish = h >= 0.2 && h <= 0.45;
-      const yellowish = h >= 0.12 && h < 0.2;
-      const cyanish = h > 0.45 && h < 0.55;
+      // Reduced greenish range:
+      const greenish = h >= 0.32 && h <= 0.37;
+      // Optionally, you can further reduce or remove yellowish/cyanish detection below if you want pure green only.
+      // const yellowish = false;
+      // const cyanish = false;
+      // If you want a tiny bit of tolerance for yellowish and cyanish, uncomment below:
+      const yellowish = false; // h >= 0.12 && h < 0.2;
+      const cyanish = false; // h > 0.45 && h < 0.55;
       const bright = l > 0.28;
       const colorful = s > 0.35;
       return (greenish || yellowish || cyanish) && bright && colorful;
@@ -380,7 +389,8 @@
         // ctx.shadowColor = "#000";
         // ctx.shadowBlur = 18;
 
-        const lines = wrapTextWords(desc, 9, 5);
+        // Paragraph-style multi-line text
+        const lines = wrapTextWords(desc, 6, 5);
         let lineHeight = fontSize * 1.3;
         for (let j = 0; j < lines.length; j++) {
           ctx.fillText(lines[j], 0, (j - (lines.length-1)/2) * lineHeight);
