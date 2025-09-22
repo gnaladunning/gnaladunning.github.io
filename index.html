@@ -27,7 +27,14 @@
       display: block;
     }
     #videoElement {
-      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 0;
+      background: #000;
     }
   </style>
 </head>
@@ -336,9 +343,8 @@
       }
     }
 
-    // --- STATIC TEXT DRAWING (REVISED for bounds and flicker elimination) ---
+    // --- STATIC TEXT DRAWING (Camera Field of View Only) ---
     function getMaxFontSizeForText(lines, canvasWidth, canvasHeight, padding = 24) {
-      // Find max font size so that lines fit inside canvas
       let maxFontSize = 80, minFontSize = 20, fontSize = maxFontSize;
       let fits = false;
       while (!fits && fontSize >= minFontSize) {
@@ -355,15 +361,40 @@
       return Math.max(fontSize, minFontSize);
     }
 
+    function getCameraDrawBounds(video, canvas) {
+      // Calculate the camera FOV on the canvas based on aspect ratios and object-fit cover logic
+      const videoAR = video.videoWidth / video.videoHeight;
+      const canvasAR = canvas.width / canvas.height;
+      let camX = 0, camY = 0, camW = canvas.width, camH = canvas.height;
+      if (canvasAR > videoAR) {
+        // Canvas is wider than video: video fills height, cropped left/right
+        camH = canvas.height;
+        camW = videoAR * camH;
+        camX = Math.round((canvas.width - camW) / 2);
+        camY = 0;
+      } else {
+        // Canvas is taller than video: video fills width, cropped top/bottom
+        camW = canvas.width;
+        camH = camW / videoAR;
+        camX = 0;
+        camY = Math.round((canvas.height - camH) / 2);
+      }
+      return { camX, camY, camW, camH };
+    }
+
     function drawStaticText(ctx, text) {
       ctx.save();
       let canvasWidth = politicalCanvas.width;
       let canvasHeight = politicalCanvas.height;
-      let padding = Math.round(canvasWidth * 0.06);
 
-      // Center and fit within bounds
+      // Get camera FOV bounds on the canvas
+      let { camX, camY, camW, camH } = getCameraDrawBounds(video, politicalCanvas);
+
+      let padding = Math.round(camW * 0.06);
+
+      // Center and fit within camera FOV
       let lines = wrapTextWords(text, 9, 5);
-      let fontSize = getMaxFontSizeForText(lines, canvasWidth, canvasHeight, padding);
+      let fontSize = getMaxFontSizeForText(lines, camW, camH, padding);
 
       ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       ctx.textAlign = "center";
@@ -373,14 +404,13 @@
       ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
 
-      // Calculate total height
+      // Calculate total height and origin in camera FOV
       let lineHeight = fontSize * 1.3;
       let totalHeight = lineHeight * lines.length;
+      let centerX = camX + camW / 2;
+      let centerY = camY + camH / 2;
 
-      let centerX = canvasWidth / 2;
-      let centerY = canvasHeight / 2;
-
-      // Draw all lines centered and with no movement/flicker
+      // Draw all lines centered in camera FOV only
       for (let j = 0; j < lines.length; j++) {
         ctx.fillText(lines[j], centerX, centerY + (j - (lines.length-1)/2) * lineHeight);
       }
@@ -414,8 +444,7 @@
 
         let minFont = 32, maxFont = 72;
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
-        let randomFontOffset = 0; // No movement/flicker for overlays either
-        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5) + randomFontOffset);
+        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
 
         let alpha = 1.0;
         let appearAlpha = 1.0;
@@ -452,7 +481,6 @@
     }
 
     // --- MAIN DRAW LOOP ---
-    // All static text states are locked during its display, so no flicker/movement.
     let staticCanvasFrame = null;
     function draw() {
       const now = Date.now();
@@ -490,7 +518,7 @@
         ctx.filter = "none";
 
         if (staticTextActive && staticCanvasFrame) {
-          // Overlay saved static text frame, no flicker or movement
+          // Overlay saved static text frame, no flicker or movement, always within camera FOV
           ctx.putImageData(staticCanvasFrame, 0, 0);
         } else {
           let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
