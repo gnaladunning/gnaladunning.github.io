@@ -48,20 +48,13 @@
 
     // --- PARAMETERS ---
     const PARAGRAPH_INTERVAL = 160000;
-    const FADE_DURATION = 30000;
     const APPEAR_DURATION = 30000;
     const DISAPPEAR_DURATION = 30000;
     const MAX_CLUSTERS = 5;
 
-    // --- STATIC TEXT CYCLE ---
-    const STATIC_TEXT_DURATION = 1000; // ms
-    const STATIC_TEXT_MIN_INTERVAL = 3500; // ms
-    const STATIC_TEXT_MAX_INTERVAL = 7000; // ms
-    const LAST_TEXT_HISTORY = 10;
-
     // --- DESCRIPTIONS ---
     const descriptions = [
-      "A group of friends discover strange events in their quiet town, uncovering secrets and facing challenges together as they navigate the mysteries hidden beneath the surface.",
+      "A group of friends discover strange events in their quiet town, uncovering secrets and facing challenges together.",
       "An artist transforms recycled materials, creating beauty from waste.",
       "A scientist races against time to develop a breakthrough cure.",
       "A family embarks on a road trip, finding adventure and understanding.",
@@ -82,86 +75,7 @@
       "An astronaut gazes at Earth from the space station.",
       "A historian uncovers forgotten stories in old letters.",
       "A filmmaker captures moments that move audiences.",
-      "A poet writes verses inspired by city lights.",
-      "A volunteer brings hope to those in need.",
-      "A designer reimagines a classic style for today.",
-      "A cyclist races through mountain trails at sunrise.",
-      "A dancer expresses emotions with every movement.",
-      "A librarian helps readers discover favorite books.",
-      "A parent supports a child’s first big step.",
-      "A photographer freezes time in a stunning portrait.",
-      "A coach cheers for every effort, win or lose.",
-      "A nurse cares for others through long nights.",
-      "A scientist unlocks the secrets of the sea.",
-      "A singer shares melodies that lift spirits.",
-      "A child dreams of exploring the stars.",
-      "A baker crafts treats that delight the senses.",
-      "A student overcomes obstacles with persistence.",
-      "A mentor guides the next generation with wisdom.",
-      "A novelist finishes the final chapter.",
-      "A couple celebrates years of shared adventure.",
-      "A pilot lands smoothly after a stormy flight.",
-      "A comedian brings laughter to a quiet crowd.",
-      "A runner breaks a personal record at dawn.",
-      "A sculptor shapes visions from raw stone.",
-      "A researcher makes a key discovery in the lab.",
-      "A community comes together for a festival.",
-      "A dog finds a forever home with loving owners.",
-      "A firefighter saves lives with courage.",
-      "A gamer reaches a new high score.",
-      "A botanist catalogs new plant species.",
-      "A social worker listens and understands.",
-      "A surfer catches the perfect wave.",
-      "A mathematician solves a complex puzzle.",
-      "A chef reinvents a family recipe.",
-      "A scientist tracks migratory birds.",
-      "A teacher sees a student succeed.",
-      "A musician improvises a moving solo.",
-      "A traveler finds joy in unexpected places.",
-      "A child learns to ride a bike.",
-      "A journalist reports on a breakthrough story.",
-      "A family gathers for a holiday meal.",
-      "A volunteer cleans up a local park.",
-      "A craftsman restores an antique chair.",
-      "A coder builds an innovative app.",
-      "A neighbor helps during a storm.",
-      "A nurse comforts a worried patient.",
-      "A student presents a big project.",
-      "An artist sketches in a busy café.",
-      "A hiker reaches a breathtaking summit.",
-      "A pilot soars above the clouds.",
-      "A poet shares words at an open mic.",
-      "A swimmer wins a tough race.",
-      "A teacher celebrates a milestone.",
-      "A gardener plants seeds for spring.",
-      "An explorer maps an unknown region.",
-      "A dancer leaps across the stage.",
-      "A novelist shares a new book.",
-      "A parent reads bedtime stories.",
-      "A scientist launches a satellite.",
-      "A chef prepares a special feast.",
-      "A child builds a castle in the sand.",
-      "A musician plays an encore.",
-      "A photographer captures a rare moment.",
-      "A student aces a difficult exam.",
-      "A volunteer tutors young learners.",
-      "A runner joins a marathon.",
-      "A designer unveils a new look.",
-      "A coach inspires teamwork.",
-      "A historian presents new findings.",
-      "A librarian organizes a community event.",
-      "A botanist discovers unique flora.",
-      "A doctor pioneers a new treatment.",
-      "A cyclist explores winding paths.",
-      "A programmer launches a creative project.",
-      "A mentor celebrates student success.",
-      "A swimmer enjoys a peaceful lake.",
-      "A teacher leads a fun field trip.",
-      "A singer records a first album.",
-      "A gardener grows a lush orchard.",
-      "A neighbor hosts a summer barbecue.",
-      "A researcher publishes a breakthrough.",
-      "A comedian improvises a witty skit."
+      "A poet writes verses inspired by city lights."
     ];
 
     // --- UTILITIES ---
@@ -410,103 +324,7 @@
            + p1;
     }
 
-    // --- STATIC TEXT CYCLE STATE ---
-    let lastClusterTexts = [];
-    let staticTextActive = false;
-    let staticTextValue = "";
-    let staticTextStartTime = 0;
-    let staticTextNextTrigger = Date.now() + getRandomStaticTextDelay();
-
-    function getRandomStaticTextDelay() {
-      return STATIC_TEXT_MIN_INTERVAL + Math.random() * (STATIC_TEXT_MAX_INTERVAL - STATIC_TEXT_MIN_INTERVAL);
-    }
-
-    function pushClusterTexts() {
-      let currentTexts = clusterStates.map(c => c.description);
-      for (let txt of currentTexts) {
-        if (txt && lastClusterTexts[lastClusterTexts.length-1] !== txt) {
-          lastClusterTexts.push(txt);
-        }
-      }
-      if (lastClusterTexts.length > LAST_TEXT_HISTORY) {
-        lastClusterTexts = lastClusterTexts.slice(-LAST_TEXT_HISTORY);
-      }
-    }
-
-    // --- STATIC TEXT DRAWING (Camera Field of View Only) ---
-    function getMaxFontSizeForText(lines, canvasWidth, canvasHeight, padding = 24) {
-      let maxFontSize = 80, minFontSize = 20, fontSize = maxFontSize;
-      let fits = false;
-      while (!fits && fontSize >= minFontSize) {
-        ctx.save();
-        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-        let lineWidths = lines.map(l => ctx.measureText(l).width);
-        let maxLineWidth = Math.max(...lineWidths);
-        let lineHeight = fontSize * 1.3;
-        let totalHeight = lineHeight * lines.length;
-        fits = maxLineWidth + padding * 2 <= canvasWidth && totalHeight + padding * 2 <= canvasHeight;
-        ctx.restore();
-        if (!fits) fontSize -= 2;
-      }
-      return Math.max(fontSize, minFontSize);
-    }
-
-    function getCameraDrawBounds(video, canvas) {
-      // Calculate the camera FOV on the canvas based on aspect ratios and object-fit cover logic
-      const videoAR = video.videoWidth / video.videoHeight;
-      const canvasAR = canvas.width / canvas.height;
-      let camX = 0, camY = 0, camW = canvas.width, camH = canvas.height;
-      if (canvasAR > videoAR) {
-        // Canvas is wider than video: video fills height, cropped left/right
-        camH = canvas.height;
-        camW = videoAR * camH;
-        camX = Math.round((canvas.width - camW) / 2);
-        camY = 0;
-      } else {
-        // Canvas is taller than video: video fills width, cropped top/bottom
-        camW = canvas.width;
-        camH = camW / videoAR;
-        camX = 0;
-        camY = Math.round((canvas.height - camH) / 2);
-      }
-      return { camX, camY, camW, camH };
-    }
-
-    function drawStaticText(ctx, text) {
-      ctx.save();
-      let canvasWidth = politicalCanvas.width;
-      let canvasHeight = politicalCanvas.height;
-
-      // Get camera FOV bounds on the canvas
-      let { camX, camY, camW, camH } = getCameraDrawBounds(video, politicalCanvas);
-
-      let padding = Math.round(camW * 0.06);
-
-      // Center and fit within camera FOV
-      let lines = wrapTextWords(text, 9, 5);
-      let fontSize = getMaxFontSizeForText(lines, camW, camH, padding);
-
-      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.globalAlpha = 1.0;
-      ctx.fillStyle = "#FF2020";
-      ctx.shadowColor = "#000";
-      ctx.shadowBlur = 24;
-
-      // Calculate total height and origin in camera FOV
-      let lineHeight = fontSize * 1.3;
-      let totalHeight = lineHeight * lines.length;
-      let centerX = camX + camW / 2;
-      let centerY = camY + camH / 2;
-
-      // Draw all lines centered in camera FOV only
-      for (let j = 0; j < lines.length; j++) {
-        ctx.fillText(lines[j], centerX, centerY + (j - (lines.length-1)/2) * lineHeight);
-      }
-      ctx.restore();
-    }
-
+    // --- DRAW OVERLAYS ---
     function drawColorOverlays(ctx, clusters) {
       updateDescriptionTransitions();
       ctx.save();
@@ -526,6 +344,7 @@
         ctx.stroke();
         ctx.globalAlpha = 1.0;
       }
+
       for (let i = 0; i < clusters.length; i++) {
         let cluster = clusters[i];
         let [x, y] = cluster.center;
@@ -557,8 +376,9 @@
         ctx.textBaseline = "middle";
         ctx.globalAlpha = descAlpha;
         ctx.fillStyle = "#FF2020";
-        ctx.shadowColor = "#000";
-        ctx.shadowBlur = 18;
+        // Removed shadow and blur
+        // ctx.shadowColor = "#000";
+        // ctx.shadowBlur = 18;
 
         const lines = wrapTextWords(desc, 9, 5);
         let lineHeight = fontSize * 1.3;
@@ -571,7 +391,6 @@
     }
 
     // --- MAIN DRAW LOOP ---
-    let staticCanvasFrame = null;
     function draw() {
       const now = Date.now();
 
@@ -580,34 +399,17 @@
         if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
-          staticCanvasFrame = null;
         }
 
-        // Draw camera frame as background (canvas overlays, so just clear canvas)
-        ctx.clearRect(0, 0, politicalCanvas.width, politicalCanvas.height);
+        // Draw video frame to canvas
+        ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
 
-        // Check static text trigger
-        if (!staticTextActive && now >= staticTextNextTrigger && lastClusterTexts.length > 0) {
-          staticTextValue = lastClusterTexts[Math.floor(Math.random() * lastClusterTexts.length)];
-          staticTextActive = true;
-          staticTextStartTime = now;
-        }
-
-        // End static text after duration
-        if (staticTextActive && now - staticTextStartTime >= STATIC_TEXT_DURATION) {
-          staticTextActive = false;
-          staticTextValue = "";
-          staticTextNextTrigger = now + getRandomStaticTextDelay();
-        }
-
+        // Cluster analysis
         let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
         let data = frame.data;
-        let clusters;
-        let clusterCenters, clusterAreaSizes;
-
-        clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
-        clusterCenters = clusters.map(getClusterCenter);
-        clusterAreaSizes = clusters.map(getClusterSize);
+        let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
+        let clusterCenters = clusters.map(getClusterCenter);
+        let clusterAreaSizes = clusters.map(getClusterSize);
 
         let forceRefresh = clustersAreDifferent(clusterCenters, prevClusterCenters);
         if (forceRefresh && clusterCenters.length > 0) {
@@ -626,14 +428,7 @@
         }
         prevClusterCenters = clusterCenters;
 
-        pushClusterTexts();
-
-        if (staticTextActive && staticTextValue) {
-          // Overlay static text over live video directly, do not black out screen
-          drawStaticText(ctx, staticTextValue);
-        } else {
-          drawColorOverlays(ctx, clusterStates);
-        }
+        drawColorOverlays(ctx, clusterStates);
       }
       requestAnimationFrame(draw);
     }
@@ -657,14 +452,12 @@
     window.addEventListener('resize', () => {
       politicalCanvas.width = window.innerWidth;
       politicalCanvas.height = window.innerHeight;
-      staticCanvasFrame = null;
     });
 
     window.addEventListener('orientationchange', () => {
       setTimeout(() => {
         politicalCanvas.width = window.innerWidth;
         politicalCanvas.height = window.innerHeight;
-        staticCanvasFrame = null;
       }, 500);
     });
   </script>
