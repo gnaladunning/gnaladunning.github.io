@@ -51,6 +51,10 @@
     const APPEAR_DURATION = 30000;
     const DISAPPEAR_DURATION = 10000;
     const MAX_CLUSTERS = 5;
+    const FROZEN_DURATION = 5000; // 5 seconds for freeze
+    const FROZEN_MIN_INTERVAL = 1000; // 1 second minimum between freezes
+    const FROZEN_MAX_INTERVAL = 20000; // 20 seconds maximum between freezes
+    const HISTORY_SIZE = 50;
 
     // --- DESCRIPTIONS ---
     const descriptions = [
@@ -78,9 +82,23 @@
       "A poet writes verses inspired by city lights."
     ];
 
-    // --- UTILITIES ---
+    // --- HISTORY ---
+    let descriptionHistory = [];
+
     function pickDescription() {
-      return descriptions[Math.floor(Math.random() * descriptions.length)];
+      const desc = descriptions[Math.floor(Math.random() * descriptions.length)];
+      pushHistory(desc);
+      return desc;
+    }
+
+    function pushHistory(desc) {
+      descriptionHistory.push(desc);
+      if (descriptionHistory.length > HISTORY_SIZE) descriptionHistory.shift();
+    }
+
+    function pickFrozenDescription() {
+      if (descriptionHistory.length === 0) return pickDescription();
+      return descriptionHistory[Math.floor(Math.random() * descriptionHistory.length)];
     }
 
     // Paragraph-like text wrapping: 4–5 words per line, centre justify
@@ -327,6 +345,34 @@
            + p1;
     }
 
+    // --- FROZEN DESCRIPTION STATE ---
+    let frozenState = {
+      active: false,
+      text: "",
+      start: 0,
+      end: 0
+    };
+
+    let nextFreezeTimeout = null;
+
+    function scheduleNextFreeze() {
+      const interval = Math.floor(Math.random() * (FROZEN_MAX_INTERVAL - FROZEN_MIN_INTERVAL + 1)) + FROZEN_MIN_INTERVAL;
+      nextFreezeTimeout = setTimeout(() => {
+        startFrozenDescription();
+      }, interval);
+    }
+
+    function startFrozenDescription() {
+      frozenState.active = true;
+      frozenState.text = pickFrozenDescription();
+      frozenState.start = Date.now();
+      frozenState.end = frozenState.start + FROZEN_DURATION;
+      setTimeout(() => {
+        frozenState.active = false;
+        scheduleNextFreeze();
+      }, FROZEN_DURATION);
+    }
+
     // --- DRAW OVERLAYS ---
     function drawColorOverlays(ctx, clusters) {
       updateDescriptionTransitions();
@@ -385,7 +431,6 @@
         let lineHeight = fontSize * 1.3;
         let totalHeight = lineHeight * lines.length;
         for (let j = 0; j < lines.length; j++) {
-          // Each line is drawn centered horizontally and vertically
           ctx.fillText(lines[j], 0, (j - (lines.length-1)/2) * lineHeight);
         }
         ctx.restore();
@@ -393,45 +438,67 @@
       ctx.restore();
     }
 
+    function drawFrozenOverlay(ctx, text) {
+      ctx.save();
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.fillRect(0, 0, politicalCanvas.width, politicalCanvas.height);
+
+      // Centered bold text
+      let minFont = 40, maxFont = 96;
+      let fontSize = Math.max(minFont, Math.min(maxFont, Math.round(politicalCanvas.width / 20)));
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#FFEE00";
+
+      const lines = wrapTextWords(text, 5, 4);
+      let lineHeight = fontSize * 1.5;
+      let centerX = politicalCanvas.width / 2;
+      let centerY = politicalCanvas.height / 2;
+      for (let j = 0; j < lines.length; j++) {
+        ctx.fillText(lines[j], centerX, centerY + (j - (lines.length-1)/2) * lineHeight);
+      }
+      ctx.restore();
+    }
+
     // --- MAIN DRAW LOOP ---
     function draw() {
-      const now = Date.now();
-
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        // Resize canvas if video frame changes
         if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
         }
-
-        // Draw video frame to canvas
         ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
 
-        // Cluster analysis
-        let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
-        let data = frame.data;
-        let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
-        let clusterCenters = clusters.map(getClusterCenter);
-        let clusterAreaSizes = clusters.map(getClusterSize);
-
-        let forceRefresh = clustersAreDifferent(clusterCenters, prevClusterCenters);
-        if (forceRefresh && clusterCenters.length > 0) {
-          updateClusters(clusterCenters, clusterAreaSizes, true);
-          triggerDescriptionChanges();
-          lastParagraphTrigger = Date.now();
-        } else if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
-          updateClusters(clusterCenters, clusterAreaSizes, true);
-          triggerDescriptionChanges();
-          lastParagraphTrigger = Date.now();
-        } else if (clusterStates.length === 0) {
-          updateClusters(clusterCenters, clusterAreaSizes, true);
-          triggerDescriptionChanges();
+        if (frozenState.active) {
+          drawFrozenOverlay(ctx, frozenState.text);
         } else {
-          updateClusters(clusterCenters, clusterAreaSizes, false);
-        }
-        prevClusterCenters = clusterCenters;
+          let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
+          let data = frame.data;
+          let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
+          let clusterCenters = clusters.map(getClusterCenter);
+          let clusterAreaSizes = clusters.map(getClusterSize);
 
-        drawColorOverlays(ctx, clusterStates);
+          let forceRefresh = clustersAreDifferent(clusterCenters, prevClusterCenters);
+          if (forceRefresh && clusterCenters.length > 0) {
+            updateClusters(clusterCenters, clusterAreaSizes, true);
+            triggerDescriptionChanges();
+            lastParagraphTrigger = Date.now();
+          } else if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
+            updateClusters(clusterCenters, clusterAreaSizes, true);
+            triggerDescriptionChanges();
+            lastParagraphTrigger = Date.now();
+          } else if (clusterStates.length === 0) {
+            updateClusters(clusterCenters, clusterAreaSizes, true);
+            triggerDescriptionChanges();
+          } else {
+            updateClusters(clusterCenters, clusterAreaSizes, false);
+          }
+          prevClusterCenters = clusterCenters;
+
+          drawColorOverlays(ctx, clusterStates);
+        }
       }
       requestAnimationFrame(draw);
     }
@@ -445,6 +512,7 @@
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
           draw();
+          scheduleNextFreeze();
         });
       })
       .catch(() => {
