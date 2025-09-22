@@ -51,10 +51,10 @@
     const APPEAR_DURATION = 30000;
     const DISAPPEAR_DURATION = 10000;
     const MAX_CLUSTERS = 5;
-    const FROZEN_DURATION = 5000; // 5 seconds for freeze
+    const FROZEN_DURATION = 3000; // 3 seconds for freeze
     const FROZEN_MIN_INTERVAL = 1000; // 1 second minimum between freezes
     const FROZEN_MAX_INTERVAL = 20000; // 20 seconds maximum between freezes
-    const HISTORY_SIZE = 50;
+    const HISTORY_SIZE = 20;
 
     // --- DESCRIPTIONS ---
     const descriptions = [
@@ -109,7 +109,6 @@
       while (i < words.length) {
         let numWords = Math.min(maxWordsPerLine, words.length - i);
         if (numWords < minWordsPerLine && i !== 0) {
-          // Add remainder to previous line if not enough for a new line
           lines[lines.length - 1] += ' ' + words.slice(i).join(' ');
           break;
         }
@@ -438,24 +437,46 @@
       ctx.restore();
     }
 
+    // --- FROZEN DESCRIPTION DRAW ---
     function drawFrozenOverlay(ctx, text) {
+      // Choose font size so all lines fit horizontally and vertically
+      let maxFont = Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 12);
+      let minFont = 20;
+      let fontSize = maxFont;
+      let maxWidth = politicalCanvas.width * 0.9;
+      let maxHeight = politicalCanvas.height * 0.9;
+
+      // Try splitting lines with max 5 words, then reduce font if needed
+      let lines = wrapTextWords(text, 5, 1);
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      let fits = false;
+      while (!fits && fontSize >= minFont) {
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        let widest = Math.max(...lines.map(line => ctx.measureText(line).width));
+        let lineHeight = fontSize * 1.4;
+        let totalHeight = lineHeight * lines.length;
+        if (widest <= maxWidth && totalHeight <= maxHeight) {
+          fits = true;
+        } else {
+          // If doesn't fit, try more lines (less words per line) or reduce font
+          if (lines.length < 8) {
+            lines = wrapTextWords(text, Math.max(2, 5 - lines.length), 1);
+          } else {
+            fontSize -= 2;
+          }
+        }
+      }
+
+      // Draw text
       ctx.save();
       ctx.globalAlpha = 1.0;
-      ctx.fillStyle = "rgba(0,0,0,0.7)";
-      ctx.fillRect(0, 0, politicalCanvas.width, politicalCanvas.height);
-
-      // Centered bold text
-      let minFont = 40, maxFont = 96;
-      let fontSize = Math.max(minFont, Math.min(maxFont, Math.round(politicalCanvas.width / 20)));
-      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#FFEE00";
-
-      const lines = wrapTextWords(text, 5, 4);
-      let lineHeight = fontSize * 1.5;
+      ctx.fillStyle = "#FFEE22";
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       let centerX = politicalCanvas.width / 2;
       let centerY = politicalCanvas.height / 2;
+      let lineHeight = fontSize * 1.4;
       for (let j = 0; j < lines.length; j++) {
         ctx.fillText(lines[j], centerX, centerY + (j - (lines.length-1)/2) * lineHeight);
       }
@@ -469,6 +490,7 @@
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
         }
+        ctx.clearRect(0, 0, politicalCanvas.width, politicalCanvas.height);
         ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
 
         if (frozenState.active) {
@@ -497,7 +519,7 @@
           }
           prevClusterCenters = clusterCenters;
 
-          drawColorOverlays(ctx, clusterStates);
+          drawColorOverlays(ctx, frozenState.active ? [] : clusterStates); // Hide all other texts if frozen
         }
       }
       requestAnimationFrame(draw);
