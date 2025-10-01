@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TVTALK AR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      touch-action: none;
+      background: #000;
+    }
+    #politicalCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 2;
+      pointer-events: none;
+      background: transparent;
+      object-fit: cover;
+      display: block;
+    }
+    #videoElement {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <video id="videoElement" autoplay playsinline muted></video>
+  <canvas id="politicalCanvas"></canvas>
+  <script>
+    const politicalCanvas = document.getElementById('politicalCanvas');
+    const video = document.getElementById('videoElement');
+    const ctx = politicalCanvas.getContext('2d');
+
+    // --- PARAMETERS ---
+    const PARAGRAPH_INTERVAL = 160000;
+    const APPEAR_DURATION = 30000;
+    const DISAPPEAR_DURATION = 2000; // Reduced to 2 seconds
+    const MAX_CLUSTERS = 5;
+    const FROZEN_DURATION = 3000; // 3 seconds for freeze
+    const FROZEN_MIN_INTERVAL = 1000; // 1 second minimum between freezes
+    const FROZEN_MAX_INTERVAL = 10000; // 10 seconds maximum between freezes
+    const HISTORY_SIZE = 20;
+
+    // --- DESCRIPTIONS ---
+    // Remove sentence case, no periods, all lower case, no full stops
+    const descriptions = [
+      "a group of friends discover strange events in their quiet town uncovering secrets and facing challenges together",
+      "an artist transforms recycled materials creating beauty from waste",
+      "a scientist races against time to develop a breakthrough cure",
+      "a family embarks on a road trip finding adventure and understanding",
+      "a detective unravels a complex web of lies in a small city",
+      "a musician finds inspiration in the sounds of everyday life",
+      "a chef creates fusion dishes blending tradition and innovation",
+      "a teacher motivates students to pursue their dreams",
+      "a young athlete trains for the biggest competition of their life",
+      "a writer explores new worlds through imagination",
+      "an engineer builds a bridge connecting two communities",
+      "a child invents a game that sweeps the playground",
+      "a painter finds their muse in the changing seasons",
+      "a traveler learns the meaning of home far away",
+      "a doctor comforts patients with kindness and skill",
+      "an entrepreneur launches a startup that changes lives",
+      "a gardener cultivates rare flowers in a hidden corner",
+      "a programmer solves a bug after hours of effort",
+      "an astronaut gazes at earth from the space station",
+      "a historian uncovers forgotten stories in old letters",
+      "a filmmaker captures moments that move audiences",
+      "a poet writes verses inspired by city lights"
+    ];
+
+    // --- HISTORY ---
+    let descriptionHistory = [];
+
+    function pickDescription() {
+      const desc = descriptions[Math.floor(Math.random() * descriptions.length)];
+      pushHistory(desc);
+      return desc;
+    }
+
+    function pushHistory(desc) {
+      descriptionHistory.push(desc);
+      if (descriptionHistory.length > HISTORY_SIZE) descriptionHistory.shift();
+    }
+
+    function pickFrozenDescription() {
+      if (descriptionHistory.length === 0) return pickDescription();
+      return descriptionHistory[Math.floor(Math.random() * descriptionHistory.length)];
+    }
+
+    // Paragraph-like text wrapping: 4–5 words per line, centre justify, no periods, no sentence case
+    function wrapTextWords(text, maxWordsPerLine = 5, minWordsPerLine = 4) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let i = 0;
+      while (i < words.length) {
+        let numWords = Math.min(maxWordsPerLine, words.length - i);
+        if (numWords < minWordsPerLine && i !== 0) {
+          lines[lines.length - 1] += ' ' + words.slice(i).join(' ');
+          break;
+        }
+        lines.push(words.slice(i, i + numWords).join(' '));
+        i += numWords;
+      }
+      return lines;
+    }
+
+    // --- MODIFIED: Luminance-based detection ---
+    // Returns true if pixel is among the lightest (luminance > 0.5)
+    function isLightLuminance(r, g, b) {
+      // Luminance formula: Y = 0.2126*R + 0.7152*G + 0.0722*B
+      const Y = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      return Y > 0.5;
+    }
+
+    // Cluster connected pixels where luminance > 0.5
+    function clusterLightPixels(data, width, height) {
+      const visited = new Uint8Array(width * height);
+      const clusters = [];
+      const pixelIndex = (x, y) => (y * width + x) * 4;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          if (visited[idx]) continue;
+          const i = pixelIndex(x, y);
+          if (isLightLuminance(data[i], data[i + 1], data[i + 2])) {
+            const queue = [[x, y]];
+            const cluster = [];
+            let minX = x, maxX = x, minY = y, maxY = y;
+            visited[idx] = 1;
+            while (queue.length) {
+              const [cx, cy] = queue.pop();
+              cluster.push([cx, cy]);
+              minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+              minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+              for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                  const nx = cx + dx, ny = cy + dy;
+                  if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                  const nidx = ny * width + nx;
+                  if (!visited[nidx]) {
+                    const ni = pixelIndex(nx, ny);
+                    if (isLightLuminance(data[ni], data[ni + 1], data[ni + 2])) {
+                      queue.push([nx, ny]);
+                      visited[nidx] = 1;
+                    }
+                  }
+                }
+              }
+            }
+            if (
+              cluster.length > 18 &&
+              minX > 0 && maxX < width - 1 &&
+              minY > 0 && maxY < height - 1
+            ) {
+              clusters.push(cluster);
+              if (clusters.length >= MAX_CLUSTERS) return clusters;
+            }
+          }
+        }
+      }
+      return clusters;
+    }
+
+    function getClusterCenter(cluster) {
+      let sumX = 0, sumY = 0;
+      for (const [x, y] of cluster) {
+        sumX += x;
+        sumY += y;
+      }
+      return [sumX / cluster.length, sumY / cluster.length];
+    }
+
+    function getClusterSize(cluster) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of cluster) {
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length);
+    }
+
+    // --- CLUSTER STATE ---
+    let clusterStates = [];
+    let prevClusterCenters = [];
+    let lastParagraphTrigger = Date.now();
+
+    function clustersAreDifferent(currentCenters, prevCenters) {
+      if (currentCenters.length !== prevCenters.length) return true;
+      for (let i = 0; i < currentCenters.length; i++) {
+        if (!prevCenters[i] || Math.abs(currentCenters[i][0] - prevCenters[i][0]) > 25 || Math.abs(currentCenters[i][1] - prevCenters[i][1]) > 25) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function updateClusters(currentCenters, currentSizes, forceRefreshDescriptions = false) {
+      let newStates = [];
+      let matched = new Set();
+      for (let i = 0; i < currentCenters.length; i++) {
+        let center = currentCenters[i];
+        let size = currentSizes[i];
+        let foundIdx = -1, minDist = Infinity;
+        for (let j = 0; j < clusterStates.length; j++) {
+          let prev = clusterStates[j];
+          if (prev.status === "disappearing") continue;
+          let dist = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
+          if (dist < 60 && dist < minDist && !matched.has(j)) {
+            minDist = dist;
+            foundIdx = j;
+          }
+        }
+        if (foundIdx !== -1) {
+          let prev = clusterStates[foundIdx];
+          newStates.push({
+            ...prev,
+            size,
+            appearStart: prev.appearStart,
+            status: "visible",
+            disappearStart: null,
+            lastUpdate: Date.now(),
+            description: forceRefreshDescriptions ? pickDescription() : prev.description,
+            nextDescription: forceRefreshDescriptions ? pickDescription() : prev.nextDescription,
+            descFade: 1,
+            descLastChange: Date.now()
+          });
+          matched.add(foundIdx);
+        } else {
+          newStates.push({
+            center,
+            size,
+            description: pickDescription(),
+            nextDescription: pickDescription(),
+            descFade: 1,
+            descLastChange: Date.now(),
+            appearStart: Date.now(),
+            status: "appearing",
+            disappearStart: null,
+            depth: Math.random(),
+            lastUpdate: Date.now()
+          });
+        }
+      }
+      for (let j = 0; j < clusterStates.length; j++) {
+        if (matched.has(j)) continue;
+        let prev = clusterStates[j];
+        if (prev.status === "disappearing" && prev.disappearStart && Date.now() - prev.disappearStart < DISAPPEAR_DURATION) {
+          newStates.push(prev);
+        } else if (prev.status !== "disappearing") {
+          newStates.push({
+            ...prev,
+            status: "disappearing",
+            disappearStart: Date.now()
+          });
+        }
+      }
+      clusterStates = newStates.slice(0, MAX_CLUSTERS);
+    }
+
+    function updateDescriptionTransitions() {
+      const now = Date.now();
+      for (let cluster of clusterStates) {
+        if (cluster.status === "appearing" && cluster.appearStart) {
+          let t = (now - cluster.appearStart) / APPEAR_DURATION;
+          cluster.appearProgress = Math.min(1, t);
+          if (cluster.appearProgress >= 1) {
+            cluster.status = "visible";
+            cluster.appearStart = null;
+            cluster.appearProgress = 1;
+          }
+        }
+        if (cluster.status === "disappearing" && cluster.disappearStart) {
+          let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
+          cluster.disappearProgress = Math.min(1, t);
+        }
+        cluster.descFade = 1;
+      }
+    }
+
+    function triggerDescriptionChanges() {
+      for (let cluster of clusterStates) {
+        cluster.nextDescription = pickDescription();
+        cluster.descFade = 1;
+        cluster.descLastChange = Date.now();
+        cluster.depth = Math.random();
+      }
+    }
+
+    function getSplinePoints(points, tension = 0.5, numOfSeg = 18) {
+      if (points.length < 2) return points;
+      let result = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        let p0 = points[i === 0 ? i : i - 1];
+        let p1 = points[i];
+        let p2 = points[i + 1];
+        let p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+        for (let t = 0; t < numOfSeg; t++) {
+          let st = t / numOfSeg;
+          let x = catmullRom(p0[0], p1[0], p2[0], p3[0], st, tension);
+          let y = catmullRom(p0[1], p1[1], p2[1], p3[1], st, tension);
+          result.push([x, y]);
+        }
+      }
+      return result;
+    }
+
+    function catmullRom(p0, p1, p2, p3, t, tension) {
+      let v0 = (p2 - p0) * tension;
+      let v1 = (p3 - p1) * tension;
+      return (2 * p1 - 2 * p2 + v0 + v1) * t * t * t
+           + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t * t
+           + v0 * t
+           + p1;
+    }
+
+    // --- FROZEN DESCRIPTION STATE ---
+    let frozenState = {
+      active: false,
+      text: "",
+      start: 0,
+      end: 0
+    };
+
+    let nextFreezeTimeout = null;
+
+    function scheduleNextFreeze() {
+      const interval = Math.floor(Math.random() * (FROZEN_MAX_INTERVAL - FROZEN_MIN_INTERVAL + 1)) + FROZEN_MIN_INTERVAL;
+      nextFreezeTimeout = setTimeout(() => {
+        startFrozenDescription();
+      }, interval);
+    }
+
+    function startFrozenDescription() {
+      frozenState.active = true;
+      frozenState.text = pickFrozenDescription();
+      frozenState.start = Date.now();
+      frozenState.end = frozenState.start + FROZEN_DURATION;
+      setTimeout(() => {
+        frozenState.active = false;
+        scheduleNextFreeze();
+      }, FROZEN_DURATION);
+    }
+
+    // --- DRAW OVERLAYS ---
+    function drawColorOverlays(ctx, clusters) {
+      updateDescriptionTransitions();
+      ctx.save();
+      let centers = clusters.filter(c => c.status !== "disappearing" || (c.status === "disappearing" && c.disappearProgress < 1)).map(c => c.center);
+      if (centers.length >= 2) {
+        let spline = getSplinePoints(centers, 0.5, 18);
+        ctx.beginPath();
+        ctx.strokeStyle = "#FF4141";
+        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 0.38;
+        for (let i = 0; i < spline.length - 1; i++) {
+          let [x1, y1] = spline[i];
+          let [x2, y2] = spline[i + 1];
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+
+      for (let i = 0; i < clusters.length; i++) {
+        let cluster = clusters[i];
+        let [x, y] = cluster.center;
+        let z = cluster.depth || 0;
+        let size = cluster.size;
+
+        // Restrict font size to always fit within all screens (ipad, iphone)
+        let minFont = Math.max(20, Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 24));
+        let maxFont = Math.max(36, Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 12));
+        let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
+        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
+
+        // Clamp font size for extra safety
+        fontSize = Math.max(minFont, Math.min(maxFont, fontSize));
+
+        let alpha = 1.0;
+        let appearAlpha = 1.0;
+        if (cluster.status === "appearing") appearAlpha = cluster.appearProgress || 0;
+        if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
+        alpha *= appearAlpha;
+
+        let desc = cluster.description;
+        let descAlpha = alpha;
+
+        ctx.save();
+        let centerX = politicalCanvas.width / 2;
+        let centerY = politicalCanvas.height / 2;
+        let staticX = x * 0.5 + centerX * 0.5;
+        let staticY = y * 0.5 + centerY * 0.5;
+        ctx.translate(staticX, staticY);
+
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.globalAlpha = descAlpha;
+        ctx.fillStyle = "#FF2020";
+
+        // Paragraph-style multi-line text, centre justified, no sentence case, no period
+        const lines = wrapTextWords(desc, 5, 4);
+        let lineHeight = fontSize * 1.3;
+        let totalHeight = lineHeight * lines.length;
+
+        // Ensure text stays within bounds: if would overflow, shrink font
+        let fits = false;
+        let tryFont = fontSize;
+        while (!fits && tryFont > minFont) {
+          ctx.font = `bold ${tryFont}px Arial, sans-serif`;
+          let widest = Math.max(...lines.map(line => ctx.measureText(line).width));
+          if (
+            widest < politicalCanvas.width * 0.95 &&
+            totalHeight < politicalCanvas.height * 0.9
+          ) {
+            fits = true;
+          } else {
+            tryFont -= 2;
+            lineHeight = tryFont * 1.3;
+            totalHeight = lineHeight * lines.length;
+          }
+        }
+        ctx.font = `bold ${tryFont}px Arial, sans-serif`;
+        lineHeight = tryFont * 1.3;
+        totalHeight = lineHeight * lines.length;
+
+        for (let j = 0; j < lines.length; j++) {
+          ctx.fillText(lines[j], 0, (j - (lines.length-1)/2) * lineHeight);
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    // --- FROZEN DESCRIPTION DRAW ---
+    function drawFrozenOverlay(ctx, text) {
+      // Make frozen text same colour as movie/tv texts: #FF2020
+      let maxFont = Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 12);
+      let minFont = 20;
+      let fontSize = maxFont;
+      let maxWidth = politicalCanvas.width * 0.95;
+      let maxHeight = politicalCanvas.height * 0.92;
+
+      // Try splitting lines with max 5 words, then reduce font if needed
+      let lines = wrapTextWords(text, 5, 1);
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      let fits = false;
+      while (!fits && fontSize >= minFont) {
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        let widest = Math.max(...lines.map(line => ctx.measureText(line).width));
+        let lineHeight = fontSize * 1.4;
+        let totalHeight = lineHeight * lines.length;
+        if (widest <= maxWidth && totalHeight <= maxHeight) {
+          fits = true;
+        } else {
+          // If doesn't fit, try more lines (less words per line) or reduce font
+          if (lines.length < 8) {
+            lines = wrapTextWords(text, Math.max(2, 5 - lines.length), 1);
+          } else {
+            fontSize -= 2;
+          }
+        }
+      }
+
+      // Draw text
+      ctx.save();
+      ctx.globalAlpha = 1.0;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#FF2020";
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      let centerX = politicalCanvas.width / 2;
+      let centerY = politicalCanvas.height / 2;
+      let lineHeight = fontSize * 1.4;
+      for (let j = 0; j < lines.length; j++) {
+        ctx.fillText(lines[j], centerX, centerY + (j - (lines.length-1)/2) * lineHeight);
+      }
+      ctx.restore();
+    }
+
+    // --- MAIN DRAW LOOP ---
+    function draw() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
+          politicalCanvas.width = video.videoWidth;
+          politicalCanvas.height = video.videoHeight;
+        }
+        ctx.clearRect(0, 0, politicalCanvas.width, politicalCanvas.height);
+        ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
+
+        if (frozenState.active) {
+          drawFrozenOverlay(ctx, frozenState.text);
+        } else {
+          let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
+          let data = frame.data;
+          // CLUSTERING ON LUMINANCE
+          let clusters = clusterLightPixels(data, politicalCanvas.width, politicalCanvas.height);
+          let clusterCenters = clusters.map(getClusterCenter);
+          let clusterAreaSizes = clusters.map(getClusterSize);
+
+          let forceRefresh = clustersAreDifferent(clusterCenters, prevClusterCenters);
+          if (forceRefresh && clusterCenters.length > 0) {
+            updateClusters(clusterCenters, clusterAreaSizes, true);
+            triggerDescriptionChanges();
+            lastParagraphTrigger = Date.now();
+          } else if (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL) {
+            updateClusters(clusterCenters, clusterAreaSizes, true);
+            triggerDescriptionChanges();
+            lastParagraphTrigger = Date.now();
+          } else if (clusterStates.length === 0) {
+            updateClusters(clusterCenters, clusterAreaSizes, true);
+            triggerDescriptionChanges();
+          } else {
+            updateClusters(clusterCenters, clusterAreaSizes, false);
+          }
+          prevClusterCenters = clusterCenters;
+
+          drawColorOverlays(ctx, frozenState.active ? [] : clusterStates); // Hide all other texts if frozen
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    // --- CAMERA SETUP ---
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        video.addEventListener('loadedmetadata', () => {
+          politicalCanvas.width = video.videoWidth;
+          politicalCanvas.height = video.videoHeight;
+          draw();
+          scheduleNextFreeze();
+        });
+      })
+      .catch(() => {
+        alert('Camera access denied or unavailable.');
+      });
+
+    // --- RESIZE HANDLERS ---
+    window.addEventListener('resize', () => {
+      politicalCanvas.width = window.innerWidth;
+      politicalCanvas.height = window.innerHeight;
+    });
+
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        politicalCanvas.width = window.innerWidth;
+        politicalCanvas.height = window.innerHeight;
+      }, 500);
+    });
+  </script>
+</body>
+</html>
