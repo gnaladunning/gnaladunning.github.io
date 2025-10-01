@@ -98,8 +98,125 @@
     }
 
     function pickFrozenDescription() {
-      if (descriptionHistory.length === 0) return pickDescription();
-      return descriptionHistory[Math.floor(Math.random() * descriptionHistory.length)];
+      // Use the new grammar-aware phrase generator
+      return generateGrammaticalPhraseFromDescriptions();
+    }
+
+    // Converts all description texts to an array of unique words (all lower case, no punctuation)
+    function getAllWordsFromDescriptions() {
+      const wordSet = new Set();
+      descriptions.forEach(desc => {
+        desc.split(/\s+/).forEach(word => {
+          if (word.trim()) wordSet.add(word.trim().toLowerCase());
+        });
+      });
+      return Array.from(wordSet);
+    }
+
+    // Helper: shuffle array in place, Fisher-Yates
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // Helper: Capitalize first word
+    function capitalizeFirst(str) {
+      if (!str) return str;
+      return str[0].toUpperCase() + str.slice(1);
+    }
+
+    // Helper: Make a phrase grammatically plausible
+    function generateGrammaticalPhraseFromDescriptions() {
+      // Extract all words from movie texts, group by part-of-speech clues
+      const words = getAllWordsFromDescriptions();
+      // Lightly infer word types for crude grammar
+      const articles = ['a', 'an', 'the'];
+      const subjects = words.filter(w =>
+        ['artist','scientist','family','detective','musician','chef','teacher','athlete','writer','engineer','child','painter','traveler','doctor','entrepreneur','gardener','programmer','astronaut','historian','filmmaker','poet','group','friends'].includes(w)
+      );
+      const verbs = words.filter(w =>
+        ['discovers','discover','transforms','creates','motivates','trains','explores','builds','invents','finds','learns','comforts','launches','cultivates','solves','gazes','uncovers','captures','writes','faces','embarks','find','develops','races','unravels','inspires','sweeps','changes'].includes(w)
+      );
+      const auxVerbs = ['is', 'are', 'was', 'were', 'has', 'have', 'had', 'can', 'may', 'will', 'should'];
+      const objects = words.filter(w =>
+        ['events','town','secrets','challenges','materials','beauty','waste','cure','road','trip','adventure','understanding','web','lies','city','sounds','life','dishes','tradition','innovation','students','dreams','competition','imagination','bridge','communities','game','playground','muse','seasons','home','meaning','kindness','skill','startup','lives','flowers','corner','bug','effort','earth','station','stories','letters','moments','audiences','verses','lights'].includes(w)
+      );
+      const preps = ['in','on','from','of','with','by','for','to','through','after','against','at','over','under','as','into','during','about','between','among','around','beyond','across'];
+      const adjectives = words.filter(w =>
+        ['strange','quiet','recycled','breakthrough','complex','small','everyday','fusion','biggest','new','rare','hidden','forgotten','old','changing'].includes(w)
+      );
+      const conjunctions = ['and','but','or','yet','so','because','although','while','when','since','if','as'];
+
+      // Randomly construct a grammatically plausible phrase
+      let phrase = '';
+      // Random pattern selection
+      const patterns = [
+        // Article + Subject + Verb + Object + (Prep + Object2)
+        () => {
+          let a = articles[Math.floor(Math.random() * articles.length)];
+          let subj = shuffleArray(subjects.slice())[0];
+          let verb = shuffleArray(verbs.slice())[0];
+          let obj = shuffleArray(objects.slice())[0];
+          let maybeAdj = Math.random() < 0.5 ? (shuffleArray(adjectives.slice())[0] + ' ') : '';
+          let maybePrep = Math.random() < 0.7 ? ' ' + shuffleArray(preps.slice())[0] + ' ' + shuffleArray(objects.slice())[0] : '';
+          return `${a} ${maybeAdj}${subj} ${verb} ${obj}${maybePrep}`;
+        },
+        // Subject + Verb + Prep + Object
+        () => {
+          let subj = shuffleArray(subjects.slice())[0];
+          let verb = shuffleArray(verbs.slice())[0];
+          let prep = shuffleArray(preps.slice())[0];
+          let obj = shuffleArray(objects.slice())[0];
+          let maybeAdj = Math.random() < 0.5 ? (shuffleArray(adjectives.slice())[0] + ' ') : '';
+          return `${subj} ${verb} ${prep} ${maybeAdj}${obj}`;
+        },
+        // Article + Adjective + Subject + Verb + (Conj + Verb + Object)
+        () => {
+          let a = articles[Math.floor(Math.random() * articles.length)];
+          let adj = shuffleArray(adjectives.slice())[0];
+          let subj = shuffleArray(subjects.slice())[0];
+          let verb1 = shuffleArray(verbs.slice())[0];
+          let conj = shuffleArray(conjunctions.slice())[0];
+          let verb2 = shuffleArray(verbs.slice())[0];
+          let obj = shuffleArray(objects.slice())[0];
+          return `${a} ${adj} ${subj} ${verb1} ${conj} ${verb2} ${obj}`;
+        },
+        // Subject + AuxVerb + Verb + Object
+        () => {
+          let subj = shuffleArray(subjects.slice())[0];
+          let aux = shuffleArray(auxVerbs.slice())[0];
+          let verb = shuffleArray(verbs.slice())[0];
+          let obj = shuffleArray(objects.slice())[0];
+          return `${subj} ${aux} ${verb} ${obj}`;
+        },
+        // Subject + Verb + Object + Conj + Verb + Object
+        () => {
+          let subj = shuffleArray(subjects.slice())[0];
+          let verb1 = shuffleArray(verbs.slice())[0];
+          let obj1 = shuffleArray(objects.slice())[0];
+          let conj = shuffleArray(conjunctions.slice())[0];
+          let verb2 = shuffleArray(verbs.slice())[0];
+          let obj2 = shuffleArray(objects.slice())[0];
+          return `${subj} ${verb1} ${obj1} ${conj} ${verb2} ${obj2}`;
+        }
+      ];
+
+      // Avoid repeating the exact previous frozen text
+      let tries = 0;
+      let candidate = '';
+      do {
+        let pattern = patterns[Math.floor(Math.random() * patterns.length)];
+        candidate = pattern();
+        tries++;
+        // Clean up possible double spaces or trailing spaces
+        candidate = candidate.replace(/\s+/g, ' ').trim();
+      } while ((candidate === frozenState.text) && tries < 10);
+
+      // Capitalize first word, add no period at end, all lower except first letter
+      return capitalizeFirst(candidate);
     }
 
     // Paragraph-like text wrapping: 4–5 words per line, centre justify, no periods, no sentence case
