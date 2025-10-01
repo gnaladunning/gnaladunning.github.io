@@ -119,33 +119,16 @@
       return lines;
     }
 
-    // --- MODIFIED: Reduce green detection range ---
-    function isWideRangeColor(r, g, b) {
-      r /= 255; g /= 255; b /= 255;
-      let max = Math.max(r, g, b), min = Math.min(r, g, b);
-      let h, s, l = (max + min) / 2;
-      if (max === min) {
-        h = s = 0;
-      } else {
-        let d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-        switch (max) {
-          case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
-          case g: h = ((b - r) / d + 2); break;
-          case b: h = ((r - g) / d + 4); break;
-        }
-        h /= 6;
-      }
-      // Reduced greenish range:
-      const greenish = h >= 0.32 && h <= 0.37;
-      const yellowish = false;
-      const cyanish = false;
-      const bright = l > 0.28;
-      const colorful = s > 0.35;
-      return (greenish || yellowish || cyanish) && bright && colorful;
+    // --- MODIFIED: Luminance-based detection ---
+    // Returns true if pixel is among the lightest (luminance > 0.5)
+    function isLightLuminance(r, g, b) {
+      // Luminance formula: Y = 0.2126*R + 0.7152*G + 0.0722*B
+      const Y = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      return Y > 0.5;
     }
 
-    function clusterColorPixels(data, width, height) {
+    // Cluster connected pixels where luminance > 0.5
+    function clusterLightPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
       const pixelIndex = (x, y) => (y * width + x) * 4;
@@ -154,7 +137,7 @@
           const idx = y * width + x;
           if (visited[idx]) continue;
           const i = pixelIndex(x, y);
-          if (isWideRangeColor(data[i], data[i + 1], data[i + 2])) {
+          if (isLightLuminance(data[i], data[i + 1], data[i + 2])) {
             const queue = [[x, y]];
             const cluster = [];
             let minX = x, maxX = x, minY = y, maxY = y;
@@ -171,7 +154,7 @@
                   const nidx = ny * width + nx;
                   if (!visited[nidx]) {
                     const ni = pixelIndex(nx, ny);
-                    if (isWideRangeColor(data[ni], data[ni + 1], data[ni + 2])) {
+                    if (isLightLuminance(data[ni], data[ni + 1], data[ni + 2])) {
                       queue.push([nx, ny]);
                       visited[nidx] = 1;
                     }
@@ -526,7 +509,8 @@
         } else {
           let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
           let data = frame.data;
-          let clusters = clusterColorPixels(data, politicalCanvas.width, politicalCanvas.height);
+          // CLUSTERING ON LUMINANCE
+          let clusters = clusterLightPixels(data, politicalCanvas.width, politicalCanvas.height);
           let clusterCenters = clusters.map(getClusterCenter);
           let clusterAreaSizes = clusters.map(getClusterSize);
 
