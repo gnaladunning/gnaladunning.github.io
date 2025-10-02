@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TVTALK AR</title>
+  <title>tvtalk ar</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <style>
     html, body {
@@ -49,15 +49,15 @@
     // --- PARAMETERS ---
     const PARAGRAPH_INTERVAL = 160000;
     const APPEAR_DURATION = 30000;
-    const DISAPPEAR_DURATION = 2000; // Reduced to 2 seconds
+    const DISAPPEAR_DURATION = 2000;
     const MAX_CLUSTERS = 5;
-    const FROZEN_DURATION = 3000; // 3 seconds for freeze
-    const FROZEN_MIN_INTERVAL = 1000; // 1 second minimum between freezes
-    const FROZEN_MAX_INTERVAL = 10000; // 10 seconds maximum between freezes
+    const FROZEN_DURATION = 3000;
+    const FROZEN_MIN_INTERVAL = 1000;
+    const FROZEN_MAX_INTERVAL = 10000;
     const HISTORY_SIZE = 20;
 
     // --- DESCRIPTIONS ---
-    // Remove sentence case, no periods, all lower case, no full stops
+    // Lowercase, no periods, no uppercase letters
     const descriptions = [
       "a group of friends discover strange events in their quiet town uncovering secrets and facing challenges together",
       "an artist transforms recycled materials creating beauty from waste",
@@ -98,11 +98,9 @@
     }
 
     function pickFrozenDescription() {
-      // Use the new grammar-aware phrase generator
       return generateGrammaticalPhraseFromDescriptions();
     }
 
-    // Converts all description texts to an array of unique words (all lower case, no punctuation)
     function getAllWordsFromDescriptions() {
       const wordSet = new Set();
       descriptions.forEach(desc => {
@@ -113,7 +111,6 @@
       return Array.from(wordSet);
     }
 
-    // Helper: shuffle array in place, Fisher-Yates
     function shuffleArray(arr) {
       for (let i = arr.length - 1; i > 0; i--) {
         let j = Math.floor(Math.random() * (i + 1));
@@ -122,39 +119,40 @@
       return arr;
     }
 
-    // Helper: Capitalize first word
     function capitalizeFirst(str) {
       if (!str) return str;
       return str[0].toUpperCase() + str.slice(1);
     }
 
-    // Helper: Make a phrase grammatically plausible
     function generateGrammaticalPhraseFromDescriptions() {
-      // Extract all words from movie texts, group by part-of-speech clues
       const words = getAllWordsFromDescriptions();
-      // Lightly infer word types for crude grammar
       const articles = ['a', 'an', 'the'];
       const subjects = words.filter(w =>
-        ['artist','scientist','family','detective','musician','chef','teacher','athlete','writer','engineer','child','painter','traveler','doctor','entrepreneur','gardener','programmer','astronaut','historian','filmmaker','poet','group','friends'].includes(w)
+        [
+          'artist','scientist','family','detective','musician','chef','teacher','athlete','writer','engineer','child','painter','traveler','doctor','entrepreneur','gardener','programmer','astronaut','historian','filmmaker','poet','group','friends'
+        ].includes(w)
       );
       const verbs = words.filter(w =>
-        ['discovers','discover','transforms','creates','motivates','trains','explores','builds','invents','finds','learns','comforts','launches','cultivates','solves','gazes','uncovers','captures','writes','faces','embarks','find','develops','races','unravels','inspires','sweeps','changes'].includes(w)
+        [
+          'discovers','discover','transforms','creates','motivates','trains','explores','builds','invents','finds','learns','comforts','launches','cultivates','solves','gazes','uncovers','captures','writes','races','develops','embarks','unravels','finds','creates','blending','pursue','competes','explores','builds','learns','finds','comforts','launches','cultivates','solves','gazes','uncovers','captures','writes'
+        ].includes(w)
       );
       const auxVerbs = ['is', 'are', 'was', 'were', 'has', 'have', 'had', 'can', 'may', 'will', 'should'];
       const objects = words.filter(w =>
-        ['events','town','secrets','challenges','materials','beauty','waste','cure','road','trip','adventure','understanding','web','lies','city','sounds','life','dishes','tradition','innovation','students','dreams','competition','imagination','bridge','communities','game','playground','muse','seasons','home','meaning','kindness','skill','startup','lives','flowers','corner','bug','effort','earth','station','stories','letters','moments','audiences','verses','lights'].includes(w)
+        [
+          'events','town','secrets','challenges','materials','beauty','waste','cure','road','trip','adventure','understanding','web','lies','city','sounds','life','dishes','tradition','innovation','students','dreams','competition','worlds','imagination','bridge','communities','game','playground','muse','seasons','meaning','home','patients','kindness','skill','startup','lives','flowers','corner','bug','effort','earth','station','stories','letters','moments','audiences','verses','lights'
+        ].includes(w)
       );
       const preps = ['in','on','from','of','with','by','for','to','through','after','against','at','over','under','as','into','during','about','between','among','around','beyond','across'];
       const adjectives = words.filter(w =>
-        ['strange','quiet','recycled','breakthrough','complex','small','everyday','fusion','biggest','new','rare','hidden','forgotten','old','changing'].includes(w)
+        [
+          'strange','quiet','recycled','breakthrough','complex','small','everyday','fusion','biggest','new','rare','hidden','forgotten','old','changing'
+        ].includes(w)
       );
       const conjunctions = ['and','but','or','yet','so','because','although','while','when','since','if','as'];
 
-      // Randomly construct a grammatically plausible phrase
       let phrase = '';
-      // Random pattern selection
       const patterns = [
-        // Article + Subject + Verb + Object + (Prep + Object2)
         () => {
           let a = articles[Math.floor(Math.random() * articles.length)];
           let subj = shuffleArray(subjects.slice())[0];
@@ -164,7 +162,6 @@
           let maybePrep = Math.random() < 0.7 ? ' ' + shuffleArray(preps.slice())[0] + ' ' + shuffleArray(objects.slice())[0] : '';
           return `${a} ${maybeAdj}${subj} ${verb} ${obj}${maybePrep}`;
         },
-        // Subject + Verb + Prep + Object
         () => {
           let subj = shuffleArray(subjects.slice())[0];
           let verb = shuffleArray(verbs.slice())[0];
@@ -173,7 +170,6 @@
           let maybeAdj = Math.random() < 0.5 ? (shuffleArray(adjectives.slice())[0] + ' ') : '';
           return `${subj} ${verb} ${prep} ${maybeAdj}${obj}`;
         },
-        // Article + Adjective + Subject + Verb + (Conj + Verb + Object)
         () => {
           let a = articles[Math.floor(Math.random() * articles.length)];
           let adj = shuffleArray(adjectives.slice())[0];
@@ -184,7 +180,6 @@
           let obj = shuffleArray(objects.slice())[0];
           return `${a} ${adj} ${subj} ${verb1} ${conj} ${verb2} ${obj}`;
         },
-        // Subject + AuxVerb + Verb + Object
         () => {
           let subj = shuffleArray(subjects.slice())[0];
           let aux = shuffleArray(auxVerbs.slice())[0];
@@ -192,7 +187,6 @@
           let obj = shuffleArray(objects.slice())[0];
           return `${subj} ${aux} ${verb} ${obj}`;
         },
-        // Subject + Verb + Object + Conj + Verb + Object
         () => {
           let subj = shuffleArray(subjects.slice())[0];
           let verb1 = shuffleArray(verbs.slice())[0];
@@ -204,22 +198,19 @@
         }
       ];
 
-      // Avoid repeating the exact previous frozen text
       let tries = 0;
       let candidate = '';
       do {
         let pattern = patterns[Math.floor(Math.random() * patterns.length)];
         candidate = pattern();
         tries++;
-        // Clean up possible double spaces or trailing spaces
         candidate = candidate.replace(/\s+/g, ' ').trim();
       } while ((candidate === frozenState.text) && tries < 10);
 
-      // Capitalize first word, add no period at end, all lower except first letter
-      return capitalizeFirst(candidate);
+      // Lowercase, no period, no sentence case
+      return candidate;
     }
 
-    // Paragraph-like text wrapping: 4–5 words per line, centre justify, no periods, no sentence case
     function wrapTextWords(text, maxWordsPerLine = 5, minWordsPerLine = 4) {
       const words = text.split(/\s+/);
       const lines = [];
@@ -236,15 +227,11 @@
       return lines;
     }
 
-    // --- MODIFIED: Luminance-based detection ---
-    // Returns true if pixel is among the lightest (luminance > 0.5)
     function isLightLuminance(r, g, b) {
-      // Luminance formula: Y = 0.2126*R + 0.7152*G + 0.0722*B
       const Y = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
       return Y > 0.5;
     }
 
-    // Cluster connected pixels where luminance > 0.5
     function clusterLightPixels(data, width, height) {
       const visited = new Uint8Array(width * height);
       const clusters = [];
@@ -311,7 +298,6 @@
       return Math.sqrt((maxX - minX) * (maxY - minY) + cluster.length);
     }
 
-    // --- CLUSTER STATE ---
     let clusterStates = [];
     let prevClusterCenters = [];
     let lastParagraphTrigger = Date.now();
@@ -473,7 +459,6 @@
       }, FROZEN_DURATION);
     }
 
-    // --- DRAW OVERLAYS ---
     function drawColorOverlays(ctx, clusters) {
       updateDescriptionTransitions();
       ctx.save();
@@ -500,15 +485,11 @@
         let z = cluster.depth || 0;
         let size = cluster.size;
 
-        // Restrict font size to always fit within all screens (ipad, iphone)
         let minFont = Math.max(20, Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 24));
         let maxFont = Math.max(36, Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 12));
         let norm = Math.max(0, Math.min(1, (size - 120) / (politicalCanvas.width * 0.13)));
         let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
-
-        // Clamp font size for extra safety
         fontSize = Math.max(minFont, Math.min(maxFont, fontSize));
-
         let alpha = 1.0;
         let appearAlpha = 1.0;
         if (cluster.status === "appearing") appearAlpha = cluster.appearProgress || 0;
@@ -531,12 +512,10 @@
         ctx.globalAlpha = descAlpha;
         ctx.fillStyle = "#FF2020";
 
-        // Paragraph-style multi-line text, centre justified, no sentence case, no period
         const lines = wrapTextWords(desc, 5, 4);
         let lineHeight = fontSize * 1.3;
         let totalHeight = lineHeight * lines.length;
 
-        // Ensure text stays within bounds: if would overflow, shrink font
         let fits = false;
         let tryFont = fontSize;
         while (!fits && tryFont > minFont) {
@@ -565,16 +544,13 @@
       ctx.restore();
     }
 
-    // --- FROZEN DESCRIPTION DRAW ---
     function drawFrozenOverlay(ctx, text) {
-      // Make frozen text same colour as movie/tv texts: #FF2020
       let maxFont = Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 12);
       let minFont = 20;
       let fontSize = maxFont;
       let maxWidth = politicalCanvas.width * 0.95;
       let maxHeight = politicalCanvas.height * 0.92;
 
-      // Try splitting lines with max 5 words, then reduce font if needed
       let lines = wrapTextWords(text, 5, 1);
       ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       let fits = false;
@@ -586,7 +562,6 @@
         if (widest <= maxWidth && totalHeight <= maxHeight) {
           fits = true;
         } else {
-          // If doesn't fit, try more lines (less words per line) or reduce font
           if (lines.length < 8) {
             lines = wrapTextWords(text, Math.max(2, 5 - lines.length), 1);
           } else {
@@ -595,7 +570,6 @@
         }
       }
 
-      // Draw text
       ctx.save();
       ctx.globalAlpha = 1.0;
       ctx.textAlign = "center";
@@ -611,10 +585,16 @@
       ctx.restore();
     }
 
-    // --- MAIN DRAW LOOP ---
     function draw() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
+      if (
+        video.readyState === video.HAVE_ENOUGH_DATA &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0
+      ) {
+        if (
+          politicalCanvas.width !== video.videoWidth ||
+          politicalCanvas.height !== video.videoHeight
+        ) {
           politicalCanvas.width = video.videoWidth;
           politicalCanvas.height = video.videoHeight;
         }
@@ -626,10 +606,18 @@
         } else {
           let frame = ctx.getImageData(0, 0, politicalCanvas.width, politicalCanvas.height);
           let data = frame.data;
-          // CLUSTERING ON LUMINANCE
-          let clusters = clusterLightPixels(data, politicalCanvas.width, politicalCanvas.height);
-          let clusterCenters = clusters.map(getClusterCenter);
-          let clusterAreaSizes = clusters.map(getClusterSize);
+          let clusters = [];
+          let clusterCenters = [];
+          let clusterAreaSizes = [];
+          try {
+            clusters = clusterLightPixels(data, politicalCanvas.width, politicalCanvas.height);
+            clusterCenters = clusters.map(getClusterCenter);
+            clusterAreaSizes = clusters.map(getClusterSize);
+          } catch (err) {
+            clusters = [];
+            clusterCenters = [];
+            clusterAreaSizes = [];
+          }
 
           let forceRefresh = clustersAreDifferent(clusterCenters, prevClusterCenters);
           if (forceRefresh && clusterCenters.length > 0) {
@@ -648,7 +636,7 @@
           }
           prevClusterCenters = clusterCenters;
 
-          drawColorOverlays(ctx, frozenState.active ? [] : clusterStates); // Hide all other texts if frozen
+          drawColorOverlays(ctx, frozenState.active ? [] : clusterStates);
         }
       }
       requestAnimationFrame(draw);
@@ -660,14 +648,19 @@
         video.srcObject = stream;
         video.play();
         video.addEventListener('loadedmetadata', () => {
-          politicalCanvas.width = video.videoWidth;
-          politicalCanvas.height = video.videoHeight;
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            politicalCanvas.width = video.videoWidth;
+            politicalCanvas.height = video.videoHeight;
+          } else {
+            politicalCanvas.width = window.innerWidth;
+            politicalCanvas.height = window.innerHeight;
+          }
           draw();
           scheduleNextFreeze();
         });
       })
       .catch(() => {
-        alert('Camera access denied or unavailable.');
+        alert('camera access denied or unavailable');
       });
 
     // --- RESIZE HANDLERS ---
