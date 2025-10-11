@@ -21,34 +21,59 @@ const ctx = pc.getContext('2d');
 
 // Reduced intervals and limits for performance
 const INTERVAL = 120000, APPEAR = 25000, DISAPPEAR = 1200, MAX = 3, FROZEN = 2000, FMIN = 1000, FMAX = 4000, HSZ = 10;
-const descs = [
-  "friends discover secrets in their town",
-  "artist creates beauty from waste",
-  "scientist races for a cure",
-  "family finds adventure on a road trip",
-  "detective unravels lies in a city",
-  "musician inspired by everyday sounds",
-  "chef blends tradition and innovation",
-  "teacher motivates students",
-  "young athlete trains for competition",
-  "writer explores new worlds",
-  "engineer builds bridges",
-  "child invents a playground game",
-  "painter inspired by seasons",
-  "traveler learns meaning of home",
-  "doctor comforts patients",
-  "entrepreneur launches startup",
-  "gardener cultivates rare flowers",
-  "programmer solves a bug",
-  "astronaut gazes at earth",
-  "historian uncovers stories",
-  "filmmaker captures moments",
-  "poet writes verses"
+
+// Expanded phrase banks
+const characters = [
+  "artist", "scientist", "family", "detective", "musician", "chef", "teacher", "young athlete", "writer", "engineer",
+  "child", "painter", "traveler", "doctor", "entrepreneur", "gardener", "programmer", "astronaut", "historian", "filmmaker",
+  "poet", "student", "inventor", "villager", "robot", "alien", "pilot", "surgeon", "comedian", "photographer", "dancer",
+  "singer", "explorer", "runner", "dreamer", "journalist", "magician", "archaeologist", "spy", "designer", "farmer",
+  "mountaineer", "healer", "pilot", "baker", "racer", "leader", "scholar"
+];
+const actions = [
+  "discovers secrets in", "creates beauty from", "races for a cure in", "finds adventure on", "unravels lies in", "is inspired by",
+  "blends tradition and innovation in", "motivates others in", "trains for competition in", "explores new worlds in", "builds bridges in",
+  "invents a playground game in", "is inspired by the seasons of", "learns the meaning of home in", "comforts patients in",
+  "launches a startup in", "cultivates rare flowers in", "solves a bug in", "gazes at Earth from", "uncovers stories in",
+  "captures moments in", "writes verses in", "restores hope in", "challenges fate in", "reunites families in", "questions reality in",
+  "defends the innocent in", "seeks redemption in", "overcomes obstacles in", "transforms lives in", "dreams big in",
+  "breaks barriers in", "discovers love in", "fights injustice in", "creates wonders in", "protects secrets in", "solves mysteries in",
+  "journeys across", "survives against odds in", "reaches for the stars in", "unites communities in", "redefines limits in"
+];
+const places = [
+  "their town", "an ancient city", "a haunted mansion", "a distant planet", "a busy metropolis", "the countryside", "the wilderness",
+  "a futuristic lab", "a secret garden", "the open sea", "a forgotten village", "the bustling market", "the snowy mountains",
+  "a mysterious forest", "the underground tunnels", "the vibrant festival", "a crowded train", "an old theater", "the abandoned factory",
+  "the digital world", "the local cafe", "a remote island", "the grand library", "the university campus", "the race track",
+  "the royal palace", "the secret base", "the ancient ruins", "the high school", "the busy hospital", "the newsroom", "the space station"
+];
+const events = [
+  "during a storm", "under the full moon", "on a summer night", "at sunrise", "before the big competition", "after a mysterious phone call",
+  "when the power goes out", "as the festival begins", "while secrets unravel", "as time runs out", "when hope seems lost",
+  "as allies gather", "while rivals plot", "with the world watching", "as memories return", "when destiny calls", "while dreams fade",
+  "as legends are born", "on the eve of change", "when the clock strikes midnight", "in the heat of battle", "as laughter fills the air",
+  "while shadows creep", "when friendship blossoms", "as old wounds heal", "while a mystery deepens", "as a challenge arises"
 ];
 
-function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]];}return a}
-function pickDesc(){return descs[Math.random()*descs.length|0];}
+// Create new non-repeating phrase generator
+const usedPhrases = new Set();
+function pickDesc(){
+  let tries = 0, phrase;
+  do {
+    const char = characters[Math.random()*characters.length|0];
+    const act = actions[Math.random()*actions.length|0];
+    const place = places[Math.random()*places.length|0];
+    const event = events[Math.random()*events.length|0];
+    phrase = `${char} ${act} ${place} ${event}`;
+    tries++;
+    // If too many phrases are used, reset
+    if (usedPhrases.size > 4000) usedPhrases.clear();
+  } while(usedPhrases.has(phrase) && tries < 10);
+  usedPhrases.add(phrase);
+  return phrase;
+}
 
+// Cluster detection
 const isLight = (r,g,b) => (0.2126*r+0.7152*g+0.0722*b)/255 > 0.5;
 
 function clusterLightPix(dat,w,h){
@@ -146,6 +171,32 @@ function drawFrozen(ctx,text){
   ctx.fillText(text,cx,cy);
   ctx.restore();
 }
+
+// Bezier curves between clusters
+function drawBezierLinks(ctx, centers){
+  if (centers.length < 2) return;
+  ctx.save();
+  ctx.globalAlpha = 0.75;
+  ctx.strokeStyle = "#FF2020";
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(pc.width, pc.height)/200));
+  for(let i=0;i<centers.length;i++){
+    for(let j=i+1;j<centers.length;j++){
+      const [x1,y1] = centers[i];
+      const [x2,y2] = centers[j];
+      // Control points: curve bulges away from midpoint
+      const mx = (x1+x2)/2, my = (y1+y2)/2;
+      const dx = x2-x1, dy = y2-y1;
+      const factor = 0.18;
+      const cx = mx - factor*dy, cy = my + factor*dx;
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.quadraticCurveTo(cx,cy,x2,y2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function draw(){
   if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth>0&&v.videoHeight>0){
     if(pc.width!==v.videoWidth||pc.height!==v.videoHeight){pc.width=v.videoWidth;pc.height=v.videoHeight;}
@@ -161,6 +212,12 @@ function draw(){
       else updateClusters(centers,sizes,0);
       prevCenters=centers;
       updateDescTrans();
+
+      // Draw bezier curves between clusters
+      if (clusters.length > 1) {
+        drawBezierLinks(ctx, clusters.map(c => c.c));
+      }
+
       for(let c of clusters){
         let[x,y]=c.c,s=c.size,fnt=Math.max(20,Math.round(Math.min(pc.width,pc.height)/24)),desc=c.desc;
         let alpha = c.status==="appearing"?c.appearP||0:c.status==="disappearing"?1-(c.disappearP||0):1;
