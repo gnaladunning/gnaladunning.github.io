@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Daily Image</title>
+  <style>
+    html,body {
+      height:100%;
+      margin:0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: #111;
+      color: #fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+    }
+    .wrap {
+      max-width:1000px;
+      width:100%;
+      padding:20px;
+      box-sizing:border-box;
+      text-align:center;
+    }
+    img#daily {
+      width:100%;
+      height:auto;
+      max-height:80vh;
+      object-fit:contain;
+      border-radius:8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      background: #222;
+    }
+    .credit {
+      margin-top:12px;
+      font-size:0.9rem;
+      color:#bbb;
+    }
+    .error {
+      color: #f88;
+      margin-top:12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img id="daily" alt="Daily image" src="" />
+    <div class="credit" id="credit"></div>
+    <div class="error" id="error" role="status" aria-live="polite"></div>
+  </div>
+
+  <script>
+    (function () {
+      // MODE 1 (default and works from file://): edit this array with relative paths to your images
+      // e.g. "images/photo1.jpg", "images/photo2.jpg", ...
+      const inlineImages = [
+        // Example entries - replace these with the paths to your local files
+        "images/1.jpg",
+        "images/2.jpg",
+        "images/3.jpg",
+        "images/4.jpg"
+      ];
+
+      // MODE 2 (optional): provide an images.json file next to this index.html containing:
+      // { "images": ["images/photo1.jpg", "images/photo2.jpg"], "credits": ["...optional..."] }
+      // If images.json is present and fetchable (when served over HTTP), it will override inlineImages.
+      const manifestPath = "images.json";
+
+      const imgEl = document.getElementById("daily");
+      const creditEl = document.getElementById("credit");
+      const errEl = document.getElementById("error");
+
+      // Utility: compute number of days since epoch (UTC)
+      function daysSinceEpochUTC(date) {
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const utc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+        return Math.floor(utc / msPerDay);
+      }
+
+      function pickImageForToday(imagesArray, creditsArray) {
+        if (!imagesArray || imagesArray.length === 0) {
+          return null;
+        }
+        const today = new Date();
+        const idx = daysSinceEpochUTC(today) % imagesArray.length;
+        return {
+          src: imagesArray[idx],
+          credit: (creditsArray && creditsArray[idx]) ? creditsArray[idx] : ""
+        };
+      }
+
+      // Try to fetch manifest; if fails, fall back to inline array
+      function loadManifestAndShow() {
+        // Use fetch but handle file:// restrictions gracefully
+        fetch(manifestPath, {cache: "no-store"})
+        .then(response => {
+          if (!response.ok) throw new Error("Manifest not available");
+          return response.json();
+        })
+        .then(json => {
+          const images = Array.isArray(json.images) ? json.images : [];
+          const credits = Array.isArray(json.credits) ? json.credits : [];
+          if (images.length === 0) {
+            // manifest present but empty -> fallback to inline
+            showFromInline();
+            return;
+          }
+          const pick = pickImageForToday(images, credits);
+          if (!pick) {
+            showError("No images available in manifest and inline list is empty.");
+            return;
+          }
+          showImage(pick.src, pick.credit, /*manifestUsed=*/true);
+        })
+        .catch(_err => {
+          // Could not load manifest (likely when opened with file:// or no manifest exists)
+          showFromInline();
+        });
+      }
+
+      function showFromInline() {
+        if (!Array.isArray(inlineImages) || inlineImages.length === 0) {
+          showError("No images configured. Add image paths to the inlineImages array or create an images.json manifest.");
+          return;
+        }
+        const pick = pickImageForToday(inlineImages, []);
+        showImage(pick.src, pick.credit || "");
+      }
+
+      function showImage(src, credit, manifestUsed = false) {
+        imgEl.src = src;
+        imgEl.onload = () => {
+          errEl.textContent = "";
+          creditEl.textContent = credit ? credit : (manifestUsed ? "" : ""); // show credit if provided
+        };
+        imgEl.onerror = () => {
+          showError("Failed to load image: " + src + ". Check the path and that the file exists.");
+          imgEl.removeAttribute("src");
+        };
+      }
+
+      function showError(msg) {
+        errEl.textContent = msg;
+      }
+
+      // Kick off
+      loadManifestAndShow();
+
+      // Optional: allow users to force-refresh the image for testing (not required)
+      // You can uncomment the following to enable clicking the image to pick the next image (for local testing):
+      // imgEl.addEventListener('click', () => {
+      //   const arr = Array.isArray(inlineImages) ? inlineImages : [];
+      //   const alt = arr[Math.floor(Math.random()*arr.length)];
+      //   if (alt) showImage(alt, "");
+      // });
+
+    })();
+  </script>
+</body>
+</html>
