@@ -22,7 +22,6 @@
       overscroll-behavior: none;
     }
     body {
-      /* disables tap highlight and user selection */
       -webkit-tap-highlight-color: transparent;
       user-select: none;
       width: 100vw;
@@ -50,7 +49,6 @@
       background: #000;
       pointer-events: none;
     }
-    /* Fullscreen button styling (if not PWA/fullscreen automatically) */
     #fsbtn {
       display:none;
       position: fixed;
@@ -65,17 +63,32 @@
       cursor: pointer;
       box-shadow: 0 2px 12px #0008;
     }
+    #immersiveMsg {
+      display:none;
+      position: fixed;
+      top: 3vw; left: 50vw; transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      padding: 0.6em 1em;
+      border-radius: 1em;
+      font-size: 1em;
+      z-index: 10000;
+      text-align: center;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
 <video id="videoElement" autoplay playsinline muted></video>
 <canvas id="politicalCanvas"></canvas>
-<button id="fsbtn">Go Fullscreen</button>
+<button id="fsbtn">Go Immersive</button>
+<div id="immersiveMsg">Use immersive mode for the best AR experience.<br/>If available, accept prompts or add the app to your home screen.</div>
 <script>
 const pc = document.getElementById('politicalCanvas');
 const v = document.getElementById('videoElement');
 const fsBtn = document.getElementById('fsbtn');
 const ctx = pc.getContext('2d');
+const immersiveMsg = document.getElementById('immersiveMsg');
 
 const INTERVAL = 120000, APPEAR = 25000, DISAPPEAR = 1200, MAX = 3, FROZEN = 2000, FMIN = 1000, FMAX = 4000, HSZ = 10;
 // Phrase banks...
@@ -252,7 +265,6 @@ function drawBezierLinks(ctx, centers){
   ctx.restore();
 }
 
-
 function draw(){
   if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth>0&&v.videoHeight>0){
     if(pc.width!==v.videoWidth||pc.height!==v.videoHeight){pc.width=v.videoWidth;pc.height=v.videoHeight;}
@@ -297,14 +309,33 @@ navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:fals
     });
   }).catch(()=>alert('camera access denied or unavailable'));
 
-// Fullscreen logic
-function handleFullscreen() {
-  if (window.matchMedia('(display-mode: fullscreen)').matches) return;
-  if (document.fullscreenElement) return;
-  fsBtn.style.display = 'block';
+// Immersive mode logic
+async function enableImmersive() {
+  immersiveMsg.style.display = 'none';
+  if (document.documentElement.requestFullscreen) {
+    await document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(()=>{});
+  }
+  // On Android Chrome, try to trigger screen.orientation.lock
+  if (screen.orientation && screen.orientation.lock) {
+    try { await screen.orientation.lock('portrait'); } catch(e){}
+  }
 }
+
+// Show immersive button if not immersive
+function handleFullscreen() {
+  if (!window.matchMedia('(display-mode: fullscreen)').matches && !document.fullscreenElement) {
+    fsBtn.style.display = 'block';
+  }
+}
+
+// Immersive mode message logic
+function showImmersiveMsg() {
+  immersiveMsg.style.display = 'block';
+  setTimeout(()=>{ immersiveMsg.style.display='none'; }, 7000);
+}
+
 fsBtn.addEventListener('click',()=>{
-  document.documentElement.requestFullscreen?.();
+  enableImmersive();
   fsBtn.style.display='none';
 });
 document.addEventListener('fullscreenchange',()=>{
@@ -312,11 +343,6 @@ document.addEventListener('fullscreenchange',()=>{
   else handleFullscreen();
 });
 
-// Resize logic
-function resizeFullScreen() {
-  pc.width = window.innerWidth;
-  pc.height = window.innerHeight;
-}
 window.addEventListener('resize', resizeFullScreen);
 window.addEventListener('orientationchange', () => {
   setTimeout(resizeFullScreen, 500);
@@ -324,11 +350,32 @@ window.addEventListener('orientationchange', () => {
 window.addEventListener('load', ()=>{
   resizeFullScreen();
   handleFullscreen();
+  // Inform user of immersive mode on load
+  setTimeout(showImmersiveMsg, 1000);
 });
+function resizeFullScreen() {
+  pc.width = window.innerWidth;
+  pc.height = window.innerHeight;
+}
 
 /* Hide browser UI as best possible (works on iOS if added to homescreen as PWA) */
 if('ontouchstart' in window){
   window.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+}
+
+// Try to hide mobile browser toolbars more directly
+if (
+  window.navigator.standalone ||
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.matchMedia('(display-mode: fullscreen)').matches
+) {
+  document.body.style.height = "100vh";
+  document.documentElement.style.height = "100vh";
+} else {
+  // In browser, push for immersive
+  fsBtn.style.display = 'block';
+  showImmersiveMsg();
+  setTimeout(()=>{window.scrollTo(0,1);}, 200);
 }
 </script>
 </body>
