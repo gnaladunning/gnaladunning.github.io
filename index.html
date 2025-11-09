@@ -3,26 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <title>tvtalk ar</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0,minimum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
   <style>
-    html, body { margin:0; padding:0; height:100%; width:100%; overflow:hidden; background:#000;}
-    #politicalCanvas, #videoElement {position:fixed; top:0; left:0; width:100vw; height:100vh; object-fit:cover;}
-    #politicalCanvas {z-index:2; pointer-events:none; background:transparent;}
-    #videoElement {z-index:1; background:#000;}
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: #000;
+      position: fixed;
+      top: 0; left: 0;
+      /* prevents scrolling on iOS */
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+    body {
+      /* disables tap highlight and user selection */
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
+      inset: 0;
+    }
+    #politicalCanvas, #videoElement {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      object-fit: cover;
+      max-width: 100vw;
+      max-height: 100vh;
+      pointer-events: none;
+      touch-action: none;
+    }
+    #politicalCanvas {
+      z-index: 2;
+      background: transparent;
+      pointer-events: none;
+    }
+    #videoElement {
+      z-index: 1;
+      background: #000;
+      pointer-events: none;
+    }
+    /* Fullscreen button styling (if not PWA/fullscreen automatically) */
+    #fsbtn {
+      display:none;
+      position: fixed;
+      bottom: 2vw; right: 2vw;
+      z-index: 9999;
+      background: rgba(20,20,20,0.78);
+      color: #fff;
+      padding: 1em 2em;
+      border: none;
+      border-radius: 2em;
+      font-size: 1.2em;
+      cursor: pointer;
+      box-shadow: 0 2px 12px #0008;
+    }
   </style>
 </head>
 <body>
 <video id="videoElement" autoplay playsinline muted></video>
 <canvas id="politicalCanvas"></canvas>
+<button id="fsbtn">Go Fullscreen</button>
 <script>
 const pc = document.getElementById('politicalCanvas');
 const v = document.getElementById('videoElement');
+const fsBtn = document.getElementById('fsbtn');
 const ctx = pc.getContext('2d');
 
-// Reduced intervals and limits for performance
 const INTERVAL = 120000, APPEAR = 25000, DISAPPEAR = 1200, MAX = 3, FROZEN = 2000, FMIN = 1000, FMAX = 4000, HSZ = 10;
-
-// Expanded phrase banks
+// Phrase banks...
 const characters = [
   "artist", "scientist", "family", "detective", "musician", "chef", "teacher", "young athlete", "writer", "engineer",
   "child", "painter", "traveler", "doctor", "entrepreneur", "gardener", "programmer", "astronaut", "historian", "filmmaker",
@@ -55,9 +111,9 @@ const events = [
   "while shadows creep", "when friendship blossoms", "as old wounds heal", "while a mystery deepens", "as a challenge arises"
 ];
 
-// Create new non-repeating phrase generator
+// Phrase generator
 const usedPhrases = new Set();
-function pickDesc(){
+function pickDesc() {
   let tries = 0, phrase;
   do {
     const char = characters[Math.random()*characters.length|0];
@@ -66,9 +122,8 @@ function pickDesc(){
     const event = events[Math.random()*events.length|0];
     phrase = `${char} ${act} ${place} ${event}`;
     tries++;
-    // If too many phrases are used, reset
     if (usedPhrases.size > 4000) usedPhrases.clear();
-  } while(usedPhrases.has(phrase) && tries < 10);
+  } while (usedPhrases.has(phrase) && tries < 10);
   usedPhrases.add(phrase);
   return phrase;
 }
@@ -197,6 +252,7 @@ function drawBezierLinks(ctx, centers){
   ctx.restore();
 }
 
+
 function draw(){
   if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth>0&&v.videoHeight>0){
     if(pc.width!==v.videoWidth||pc.height!==v.videoHeight){pc.width=v.videoWidth;pc.height=v.videoHeight;}
@@ -213,7 +269,6 @@ function draw(){
       prevCenters=centers;
       updateDescTrans();
 
-      // Draw bezier curves between clusters
       if (clusters.length > 1) {
         drawBezierLinks(ctx, clusters.map(c => c.c));
       }
@@ -232,6 +287,7 @@ function draw(){
   requestAnimationFrame(draw);
 }
 
+// Camera access
 navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})
   .then(s=>{
     v.srcObject=s;v.play();v.addEventListener('loadedmetadata',()=>{
@@ -241,8 +297,39 @@ navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:fals
     });
   }).catch(()=>alert('camera access denied or unavailable'));
 
-window.addEventListener('resize',()=>{pc.width=window.innerWidth;pc.height=window.innerHeight;});
-window.addEventListener('orientationchange',()=>{setTimeout(()=>{pc.width=window.innerWidth;pc.height=window.innerHeight;},500);});
+// Fullscreen logic
+function handleFullscreen() {
+  if (window.matchMedia('(display-mode: fullscreen)').matches) return;
+  if (document.fullscreenElement) return;
+  fsBtn.style.display = 'block';
+}
+fsBtn.addEventListener('click',()=>{
+  document.documentElement.requestFullscreen?.();
+  fsBtn.style.display='none';
+});
+document.addEventListener('fullscreenchange',()=>{
+  if(document.fullscreenElement) fsBtn.style.display='none';
+  else handleFullscreen();
+});
+
+// Resize logic
+function resizeFullScreen() {
+  pc.width = window.innerWidth;
+  pc.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeFullScreen);
+window.addEventListener('orientationchange', () => {
+  setTimeout(resizeFullScreen, 500);
+});
+window.addEventListener('load', ()=>{
+  resizeFullScreen();
+  handleFullscreen();
+});
+
+/* Hide browser UI as best possible (works on iOS if added to homescreen as PWA) */
+if('ontouchstart' in window){
+  window.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+}
 </script>
 </body>
 </html>
