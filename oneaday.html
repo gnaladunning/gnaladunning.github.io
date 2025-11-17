@@ -41,121 +41,177 @@
       color: #f88;
       margin-top:12px;
     }
+    .nav-btns {
+      margin-top:18px;
+    }
+    .nav-btns button {
+      padding:8px 16px;
+      margin:0 8px;
+      border:none;
+      border-radius:5px;
+      background:#333;
+      color:#fff;
+      font-size:1rem;
+      cursor:pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      transition:background 0.2s;
+    }
+    .nav-btns button:disabled {
+      opacity:0.5;
+      cursor:not-allowed;
+    }
+    .nav-btns button:hover:not(:disabled) {
+      background:#444;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <img id="daily" alt="Daily image" src="" />
     <div class="credit" id="credit"></div>
+    <div class="nav-btns">
+      <button id="prevBtn" type="button">Previous Image</button>
+      <button id="todayBtn" type="button">Today</button>
+    </div>
     <div class="error" id="error" role="status" aria-live="polite"></div>
   </div>
 
   <script>
-    (function () {
-      // MODE 1 (default and works from file://): edit this array with relative paths to your images
-      // e.g. "images/photo1.jpg", "images/photo2.jpg", ...
-      const inlineImages = [
-        // Example entries - replace these with the paths to your local files
-        "images/1.jpg",
-        "images/2.jpg",
-        "images/3.jpg",
-        "images/4.jpg"
-      ];
+    // CONFIG: update your folder and images.json (see below)
+    const IMAGES_FOLDER = "images/";
+    const MANIFEST_PATH = IMAGES_FOLDER + "images.json";
 
-      // MODE 2 (optional): provide an images.json file next to this index.html containing:
-      // { "images": ["images/photo1.jpg", "images/photo2.jpg"], "credits": ["...optional..."] }
-      // If images.json is present and fetchable (when served over HTTP), it will override inlineImages.
-      const manifestPath = "images.json";
+    // images.json example:
+    // { "images": ["1.jpg", "2.jpg", "3.jpg", ...] }
 
-      const imgEl = document.getElementById("daily");
-      const creditEl = document.getElementById("credit");
-      const errEl = document.getElementById("error");
+    const imgEl = document.getElementById("daily");
+    const creditEl = document.getElementById("credit");
+    const errEl = document.getElementById("error");
+    const prevBtn = document.getElementById("prevBtn");
+    const todayBtn = document.getElementById("todayBtn");
 
-      // Utility: compute number of days since epoch (UTC)
-      function daysSinceEpochUTC(date) {
-        const msPerDay = 24 * 60 * 60 * 1000;
-        const utc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-        return Math.floor(utc / msPerDay);
+    // Fetch image file manifest
+    function fetchManifest() {
+      return fetch(MANIFEST_PATH, {cache: "no-store"})
+        .then(resp => resp.ok ? resp.json() : Promise.reject("Manifest not available"))
+        .then(json => Array.isArray(json.images) ? json.images.slice() : [])
+        .catch(_ => []);
+    }
+
+    // Fisher-Yates shuffle, seeded (so output is deterministic for given seed)
+    function seededShuffle(array, seed) {
+      let arr = array.slice();
+      let random = seededRandom(seed); // returns fn [0,1)
+      for (let i = arr.length - 1; i > 0; i--) {
+        let j = Math.floor(random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
       }
+      return arr;
+    }
 
-      function pickImageForToday(imagesArray, creditsArray) {
-        if (!imagesArray || imagesArray.length === 0) {
-          return null;
-        }
-        const today = new Date();
-        const idx = daysSinceEpochUTC(today) % imagesArray.length;
-        return {
-          src: imagesArray[idx],
-          credit: (creditsArray && creditsArray[idx]) ? creditsArray[idx] : ""
-        };
+    // Simple seeded random generator (Mulberry32)
+    function seededRandom(seed) {
+      let s = typeof seed === "number" ? seed : hashString(seed);
+      return function() {
+        s |= 0; s = (s + 0x6D2B79F5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    // Simple hash to convert a string to seed
+    function hashString(str) {
+      let hash = 5381;
+      for(let i=0;i<str.length;i++){
+        hash = ((hash << 5) + hash) + str.charCodeAt(i);
       }
+      return hash >>> 0;
+    }
 
-      // Try to fetch manifest; if fails, fall back to inline array
-      function loadManifestAndShow() {
-        // Use fetch but handle file:// restrictions gracefully
-        fetch(manifestPath, {cache: "no-store"})
-        .then(response => {
-          if (!response.ok) throw new Error("Manifest not available");
-          return response.json();
-        })
-        .then(json => {
-          const images = Array.isArray(json.images) ? json.images : [];
-          const credits = Array.isArray(json.credits) ? json.credits : [];
-          if (images.length === 0) {
-            // manifest present but empty -> fallback to inline
-            showFromInline();
-            return;
-          }
-          const pick = pickImageForToday(images, credits);
-          if (!pick) {
-            showError("No images available in manifest and inline list is empty.");
-            return;
-          }
-          showImage(pick.src, pick.credit, /*manifestUsed=*/true);
-        })
-        .catch(_err => {
-          // Could not load manifest (likely when opened with file:// or no manifest exists)
-          showFromInline();
-        });
+    // Compute index for the given day
+    function getIndexForDay(dayOffset, imagesLen, baseDateStr, seed) {
+      // Calculate days since baseDate
+      let today = new Date();
+      let baseDate = baseDateStr ? new Date(baseDateStr) : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      let daysSinceBase = Math.floor((Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
+                                      Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()))/(24*60*60*1000));
+      let index = daysSinceBase + dayOffset;
+      // Clamp so always non-negative
+      if (index < 0) index = 0;
+      if (!imagesLen || imagesLen === 0) return 0;
+      if (index >= imagesLen) index = imagesLen-1;
+      return index;
+    }
+
+    function getBaseDateStr() {
+      // If you want to start a sequence from a specific calendar date set it here, e.g. "2024-01-01"
+      // Otherwise, default is today so first visitor sees first image then next day, the next image, etc.
+      return "2024-01-01"; // <-- change this to your start date or to "" to start from today
+    }
+
+    // Extract filename (without extension) for caption
+    function getTitleFromFilename(fname) {
+      let base = fname.split('/').pop();
+      let dotIdx = base.lastIndexOf('.');
+      return dotIdx > 0 ? base.slice(0, dotIdx) : base;
+    }
+
+    // Rendering logic
+    let images = [];
+    let shuffledImages = [];
+    let currentOffset = 0; // How many days before/after "today" (0=Today, -1=Yesterday...)
+
+    function showImage(idx) {
+      let file = shuffledImages[idx];
+      if (!file) {
+        imgEl.removeAttribute('src');
+        creditEl.textContent = "";
+        errEl.textContent = "No image for this day.";
+        return;
       }
+      let src = IMAGES_FOLDER + file;
+      imgEl.src = src;
+      creditEl.textContent = getTitleFromFilename(file);
+      errEl.textContent = "";
+    }
 
-      function showFromInline() {
-        if (!Array.isArray(inlineImages) || inlineImages.length === 0) {
-          showError("No images configured. Add image paths to the inlineImages array or create an images.json manifest.");
-          return;
-        }
-        const pick = pickImageForToday(inlineImages, []);
-        showImage(pick.src, pick.credit || "");
+    function updateButtons() {
+      prevBtn.disabled = (getIndexForDay(currentOffset-1, images.length, getBaseDateStr()) < 0);
+      todayBtn.disabled = (currentOffset === 0);
+    }
+
+    function goTo(offset) {
+      currentOffset = offset;
+      let idx = getIndexForDay(currentOffset, images.length, getBaseDateStr());
+      showImage(idx);
+      updateButtons();
+    }
+
+    // Button events
+    prevBtn.onclick = function() {
+      currentOffset -= 1;
+      goTo(currentOffset);
+    };
+    todayBtn.onclick = function() {
+      currentOffset = 0;
+      goTo(currentOffset);
+    };
+
+    // Init sequence
+    fetchManifest().then(imgs => {
+      if (!imgs.length) {
+        showImage(-1);
+        errEl.textContent = "No images found in manifest. Ensure images.json exists, and 'images' array lists your image files.";
+        prevBtn.disabled = todayBtn.disabled = true;
+        return;
       }
+      images = imgs;
+      // Shuffle the image list, with fixed seed so every client sees the same order for the same seed
+      let seed = (getBaseDateStr() || "") + "-random-seed";
+      shuffledImages = seededShuffle(images, seed);
+      goTo(currentOffset);
+    });
 
-      function showImage(src, credit, manifestUsed = false) {
-        imgEl.src = src;
-        imgEl.onload = () => {
-          errEl.textContent = "";
-          creditEl.textContent = credit ? credit : (manifestUsed ? "" : ""); // show credit if provided
-        };
-        imgEl.onerror = () => {
-          showError("Failed to load image: " + src + ". Check the path and that the file exists.");
-          imgEl.removeAttribute("src");
-        };
-      }
-
-      function showError(msg) {
-        errEl.textContent = msg;
-      }
-
-      // Kick off
-      loadManifestAndShow();
-
-      // Optional: allow users to force-refresh the image for testing (not required)
-      // You can uncomment the following to enable clicking the image to pick the next image (for local testing):
-      // imgEl.addEventListener('click', () => {
-      //   const arr = Array.isArray(inlineImages) ? inlineImages : [];
-      //   const alt = arr[Math.floor(Math.random()*arr.length)];
-      //   if (alt) showImage(alt, "");
-      // });
-
-    })();
   </script>
 </body>
 </html>
