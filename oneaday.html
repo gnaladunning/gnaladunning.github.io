@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Daily Image</title>
+  <title>Daily Image (Auto Folder, No JSON)</title>
   <style>
     html,body {
       height:100%;
@@ -75,30 +75,64 @@
     </div>
     <div class="error" id="error" role="status" aria-live="polite"></div>
   </div>
-
   <script>
-    // CONFIG: update your folder and images.json (see below)
+    // CONFIG: set folder path. IMAGES_FOLDER must have trailing "/"
     const IMAGES_FOLDER = "images/";
-    const MANIFEST_PATH = IMAGES_FOLDER + "images.json";
 
-    // images.json example:
-    // { "images": ["1.jpg", "2.jpg", "3.jpg", ...] }
+    // Supported extensions (add/remove as needed)
+    const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"];
 
-    const imgEl = document.getElementById("daily");
-    const creditEl = document.getElementById("credit");
-    const errEl = document.getElementById("error");
-    const prevBtn = document.getElementById("prevBtn");
-    const todayBtn = document.getElementById("todayBtn");
+    // MAIN LOGIC:
+    // 1. List all images in folder (requires server-side endpoints, or use fallback index list)
+    // 2. Pick one image per day, randomly, but non-repeating till all shown
+    // 3. 'Previous' and 'Today' navigation (cycles after last image)
+    // 4. Display image filename as credit
 
-    // Fetch image file manifest
-    function fetchManifest() {
-      return fetch(MANIFEST_PATH, {cache: "no-store"})
-        .then(resp => resp.ok ? resp.json() : Promise.reject("Manifest not available"))
-        .then(json => Array.isArray(json.images) ? json.images.slice() : [])
-        .catch(_ => []);
+    // === SERVER REQUIREMENT ===
+    // This html will only work as intended if your server supports folder listing
+    //  - On Apache: Ensure mod_autoindex is enabled for images/ (just remove index.html from images/)
+    //  - On nginx: similar autoindex directive
+    // Otherwise: fallback to a manually created index.txt list
+
+    // --- Image list fetching ---
+    function fetchImageList() {
+      // Try folder listing (parse HTML of images/)
+      return fetch(IMAGES_FOLDER, {headers: {Accept:'text/html'}})
+        .then(resp => {
+          if (!resp.ok) throw new Error("Can't fetch folder listing");
+          return resp.text();
+        })
+        .then(html => {
+          // Parse directory html
+          const files = [];
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          const links = Array.from(doc.querySelectorAll("a"));
+          links.forEach(a => {
+            const href = a.getAttribute('href');
+            if (!href) return;
+            const ext = href.split('.').pop().toLowerCase();
+            if (IMAGE_EXTS.includes(ext) && !href.startsWith("?")) {
+              files.push(href.replace(/^\//, ""));
+            }
+          });
+          return files;
+        })
+        .then(list => {
+          // If directory listing failed or is empty, try index.txt fallback
+          if (list.length === 0) throw new Error("No images in directory listing");
+          return list;
+        })
+        .catch(_ => {
+          // Fallback: try index.txt
+          return fetch(IMAGES_FOLDER + "index.txt", {cache:"reload"})
+            .then(resp => resp.ok ? resp.text() : "")
+            .then(txt => txt.split('\n').map(x => x.trim()).filter(x => x && IMAGE_EXTS.some(ext => x.toLowerCase().endsWith(ext))))
+            .catch(_ => []);
+        });
     }
 
-    // Fisher-Yates shuffle, seeded (so output is deterministic for given seed)
+    // --- Shuffle function: deterministic shuffle with seed ---
     function seededShuffle(array, seed) {
       let arr = array.slice();
       let random = seededRandom(seed); // returns fn [0,1)
@@ -108,9 +142,8 @@
       }
       return arr;
     }
-
-    // Simple seeded random generator (Mulberry32)
     function seededRandom(seed) {
+      // Mulberry32 PRNG
       let s = typeof seed === "number" ? seed : hashString(seed);
       return function() {
         s |= 0; s = (s + 0x6D2B79F5) | 0;
@@ -119,7 +152,6 @@
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
       };
     }
-    // Simple hash to convert a string to seed
     function hashString(str) {
       let hash = 5381;
       for(let i=0;i<str.length;i++){
@@ -128,38 +160,37 @@
       return hash >>> 0;
     }
 
-    // Compute index for the given day
-    function getIndexForDay(dayOffset, imagesLen, baseDateStr, seed) {
-      // Calculate days since baseDate
+    // --- Calculate which image to show today ---
+    //  * Each image shown once till all displayed. When run out, restart at beginning (with same random order)
+    function getDayIndex(imagesLen, baseDateStr, offset=0) {
       let today = new Date();
       let baseDate = baseDateStr ? new Date(baseDateStr) : new Date(today.getFullYear(), today.getMonth(), today.getDate());
       let daysSinceBase = Math.floor((Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
                                       Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()))/(24*60*60*1000));
-      let index = daysSinceBase + dayOffset;
-      // Clamp so always non-negative
-      if (index < 0) index = 0;
-      if (!imagesLen || imagesLen === 0) return 0;
-      if (index >= imagesLen) index = imagesLen-1;
+      let index = (daysSinceBase + offset) % imagesLen;
+      if (index < 0) index = (index + imagesLen) % imagesLen;
       return index;
     }
-
     function getBaseDateStr() {
-      // If you want to start a sequence from a specific calendar date set it here, e.g. "2024-01-01"
-      // Otherwise, default is today so first visitor sees first image then next day, the next image, etc.
-      return "2024-01-01"; // <-- change this to your start date or to "" to start from today
+      // Set as needed, or blank to start from today
+      return "2024-01-01";
     }
 
-    // Extract filename (without extension) for caption
+    // --- Display logic ---
     function getTitleFromFilename(fname) {
       let base = fname.split('/').pop();
       let dotIdx = base.lastIndexOf('.');
       return dotIdx > 0 ? base.slice(0, dotIdx) : base;
     }
+    const imgEl = document.getElementById("daily");
+    const creditEl = document.getElementById("credit");
+    const errEl = document.getElementById("error");
+    const prevBtn = document.getElementById("prevBtn");
+    const todayBtn = document.getElementById("todayBtn");
 
-    // Rendering logic
     let images = [];
     let shuffledImages = [];
-    let currentOffset = 0; // How many days before/after "today" (0=Today, -1=Yesterday...)
+    let currentOffset = 0;
 
     function showImage(idx) {
       let file = shuffledImages[idx];
@@ -174,20 +205,17 @@
       creditEl.textContent = getTitleFromFilename(file);
       errEl.textContent = "";
     }
-
     function updateButtons() {
-      prevBtn.disabled = (getIndexForDay(currentOffset-1, images.length, getBaseDateStr()) < 0);
+      prevBtn.disabled = (images.length === 0);
       todayBtn.disabled = (currentOffset === 0);
     }
-
     function goTo(offset) {
       currentOffset = offset;
-      let idx = getIndexForDay(currentOffset, images.length, getBaseDateStr());
+      let idx = getDayIndex(images.length, getBaseDateStr(), currentOffset);
       showImage(idx);
       updateButtons();
     }
 
-    // Button events
     prevBtn.onclick = function() {
       currentOffset -= 1;
       goTo(currentOffset);
@@ -197,16 +225,15 @@
       goTo(currentOffset);
     };
 
-    // Init sequence
-    fetchManifest().then(imgs => {
-      if (!imgs.length) {
-        showImage(-1);
-        errEl.textContent = "No images found in manifest. Ensure images.json exists, and 'images' array lists your image files.";
+    // INIT
+    fetchImageList().then(imgs => {
+      if (!imgs || !imgs.length) {
+        errEl.textContent = "No images found in folder or index.txt. Please add images or an index.txt list.";
         prevBtn.disabled = todayBtn.disabled = true;
         return;
       }
       images = imgs;
-      // Shuffle the image list, with fixed seed so every client sees the same order for the same seed
+      // Shuffle (but stable for seed: always same order)
       let seed = (getBaseDateStr() || "") + "-random-seed";
       shuffledImages = seededShuffle(images, seed);
       goTo(currentOffset);
