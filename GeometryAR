@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Compositional Geometry Analyzer - AR Web</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <!-- MindAR and A-Frame CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.3.0/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mindar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
+  <style>
+    body {
+      margin:0; padding:0; background: #181818;
+      color: #fff; font-family:sans-serif;
+    }
+
+    #imageInput {
+      position: absolute;
+      top: 1em; left: 1em;
+      z-index: 2;
+      background: rgba(30,30,30,0.75);
+      border-radius: 8px;
+      padding: .5em;
+    }
+    .controls {
+      position: absolute; right: 1em; top: 1em;
+      z-index: 2;
+      background:rgba(30,30,30,0.75);
+      border-radius:8px; padding:.7em 1em; font-size:1em;
+    }
+    .controls label { display:block; margin-bottom:.3em; }
+    #instructions {
+      background:rgba(0,0,0,0.8); color:#fff;
+      max-width: 450px;
+      margin:.5em auto;
+      border-radius: 8px;
+      padding: 12px;
+      font-size:1em;
+      z-index: 3;
+      position:relative;
+      text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div id="instructions">
+    <b>Compositional Geometry AR Analyzer</b><br>
+    1. Upload or select a photo or artwork.<br>
+    2. Point device camera at the real image.<br>
+    3. Compositional overlays (thirds, diagonals, curves, perspective) align in AR over the tracked image.<br>
+    <b>Move around to analyze!</b>
+    <div style="margin-top:.7em; font-size:.93em;color:#aca;">
+      Powered by <a href="https://hiukim.github.io/mind-ar-js-doc/" style="color:#cfa">MindAR</a> for WebXR/mobile AR.
+    </div>
+  </div>
+  <input id="imageInput" type="file" accept="image/*">
+  <div class="controls">
+    <label><input type="checkbox" id="thirdsChk" checked> Rule of Thirds</label>
+    <label><input type="checkbox" id="diagonalsChk" checked> Diagonals</label>
+    <label><input type="checkbox" id="goldenChk"> Golden Ratio</label>
+    <label><input type="checkbox" id="perspectiveChk"> Perspective</label>
+    <label><input type="checkbox" id="curvesChk"> Dynamic Curves</label>
+  </div>
+  <!-- MindAR image target -->
+  <div style="width:100vw; height:100vh;">
+    <a-scene
+        mindar-image="imageTargetSrc: #img-target; autoStart: false;"
+        color-space="sRGB"
+        embedded
+        renderer="precision: mediump; antialias: true;"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: true"
+        style="width:100vw; height:100vh;">
+      <!-- Camera -->
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      <!-- Image Target -->
+      <a-entity mindar-image-target="targetIndex: 0">
+        <!-- Image Plane (photo/art) -->
+        <a-plane id="artPlane" width="1" height="0.7" position="0 0 0" material="shader: flat; transparent:true;"></a-plane>
+        <!-- Overlay geometry -->
+        <a-entity id="overlayGroup"></a-entity>
+      </a-entity>
+    </a-scene>
+    <!-- MindAR Image Targets -->
+    <img id="img-target" crossorigin="anonymous" style="display:none;">
+  </div>
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const imgTarget = document.getElementById('img-target');
+    const artPlane = document.querySelector('#artPlane');
+    const overlayGroup = document.getElementById('overlayGroup');
+    const sceneEl = document.querySelector('a-scene');
+    let arStarted = false;
+
+    // Default overlays' states
+    let overlays = {
+      thirds: true,
+      diagonals: true,
+      golden: false,
+      perspective: false,
+      curves: false
+    };
+
+    // Checkbox controls
+    document.getElementById('thirdsChk').onchange = function(){ overlays.thirds = this.checked; drawOverlayGroup(); }
+    document.getElementById('diagonalsChk').onchange = function(){ overlays.diagonals = this.checked; drawOverlayGroup(); }
+    document.getElementById('goldenChk').onchange = function(){ overlays.golden = this.checked; drawOverlayGroup(); }
+    document.getElementById('perspectiveChk').onchange = function(){ overlays.perspective = this.checked; drawOverlayGroup(); }
+    document.getElementById('curvesChk').onchange = function(){ overlays.curves = this.checked; drawOverlayGroup(); }
+
+    imageInput.onchange = function(e){
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        imgTarget.src = evt.target.result;
+        artPlane.setAttribute("material", "src", evt.target.result);
+
+        imgTarget.onload = () => {
+          // On load, (re)start AR scene for tracking
+          if (arStarted) {
+            // MindAR doesn't support dynamic runtime new targets perfectly;
+            // as a workaround, reload the page on new photo. (production: use server-compiled .mind targets)
+            alert("For a new image, please refresh the page, then upload again. MindAR dynamic compile is experimental.");
+          } else {
+            // Start MindAR
+            startMindAR();
+          }
+        };
+      };
+      reader.readAsDataURL(file);
+    };
+
+    function startMindAR() {
+      // Start the AR (resume for user gesture on mobile)
+      sceneEl.components["mindar-image"].start();
+      arStarted = true;
+      drawOverlayGroup();
+    }
+
+    function clearOverlayGroup() {
+      while(overlayGroup.firstChild) overlayGroup.removeChild(overlayGroup.firstChild);
+    }
+
+    function drawOverlayGroup() {
+      clearOverlayGroup();
+      // Unit: artPlane = width 1, height ~0.7 (matches ~3:2, common art/photo)
+      const w = 1, h = 0.7, colorAlpha = "0.8";
+      // Helper: add overlay a-frame entities
+      function addLine(x1, y1, x2, y2, col="#FF0", dash) {
+        // In local plane coordinates, at z=0.001 (above plane)
+        const seg = document.createElement("a-entity");
+        seg.setAttribute("line", {
+          start: `${x1} ${y1} 0.001`,
+          end: `${x2} ${y2} 0.001`,
+          color: col,
+          opacity: colorAlpha,
+          visible: true,
+          dashSize: dash ? dash : 0, // enable dash if needed
+          gapSize: dash ? dash : 0
+        });
+        overlayGroup.appendChild(seg);
+      }
+      // Rule of Thirds lines
+      if(overlays.thirds){
+        for(let i=1;i<=2;i++){
+          // Vertical
+          addLine(w*i/3,-h/2,w*i/3,h/2,"#FF0");
+          // Horizontal
+          addLine(0,-h/2+i*(h/3),w,-h/2+i*(h/3),"#FF0");
+        }
+      }
+      // Diagonals (main and from thirds)
+      if(overlays.diagonals){
+        // Main
+        addLine(0,-h/2,w,h/2,"#4ef");
+        addLine(w,-h/2,0,h/2,"#4ef");
+        // Thirds diagonals (dashed)
+        const dashSize = 0.01;
+        for(let i=1;i<=2;i++){
+          addLine(w*i/3,-h/2,w,i*h/3-h/2,"#4ef",dashSize);
+          addLine(0,-h/2+i*(h/3),w*i/3,h/2,"#4ef",dashSize);
+          addLine(w-w*i/3,-h/2,0,i*h/3-h/2,"#4ef",dashSize);
+          addLine(w,-h/2+i*(h/3),w-w*i/3,h/2,"#4ef",dashSize);
+        }
+      }
+      // Golden Ratio grid and spirals (approx)
+      if(overlays.golden){
+        const phi = 0.618;
+        // Vertical/horizontal phi lines
+        addLine(w*phi,-h/2,w*phi,h/2,"#8aff6e");
+        addLine(w*(1-phi),-h/2,w*(1-phi),h/2,"#8aff6e");
+        addLine(0,-h/2+h*phi,w,-h/2+h*phi,"#8aff6e");
+        addLine(0,-h/2+h*(1-phi),w,-h/2+h*(1-phi),"#8aff6e");
+        // Optional: golden spiral with dots
+        function goldenSpiral(cx,cy,flipX,flipY,col){
+          let pts=[];
+          let a=0, maxA=1.6*Math.PI, steps=90;
+          let r0 = (Math.min(w,h)*0.55)*0.99;
+          for(let s=0;s<steps;s++){
+            let r = r0 * Math.pow(phi, a/(2*Math.PI));
+            let x=cx + flipX*r*Math.cos(a);
+            let y=cy + flipY*r*Math.sin(a);
+            pts.push([x,y]);
+            a += maxA/steps;
+          }
+          for(let i=1;i<pts.length;i++){
+            addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],col,0);
+          }
+        }
+        goldenSpiral(0,-h/2,1,1,"#8aff6e"); // TL
+        goldenSpiral(w,-h/2,-1,1,"#8aff6e");
+        goldenSpiral(0,h/2,1,-1,"#8aff6e");
+        goldenSpiral(w,h/2,-1,-1,"#8aff6e");
+      }
+      // Perspective lines (center vanishing point)
+      if(overlays.perspective){
+        let cx=w/2,cy=0;
+        let lines = 11;
+        for(let i=0;i<lines;i++){
+          let angle = Math.PI*2*i/lines;
+          let rx = Math.cos(angle), ry = Math.sin(angle);
+          addLine(cx,cy,
+            cx+rx*(w),cy+ry*(h/1.5),"#f85",0);
+        }
+        for(let j=1;j<6;j++){
+          // horizontal ortho
+          let y=-h/2 + j*(h/6);
+          addLine(0,y,w,y,"#f85",0.008);
+        }
+      }
+      // Dynamic curves (C/S)
+      if(overlays.curves){
+        // C curve
+        let pts = [];
+        let C = [[0.14,-h/2+0.07],[w-0.12,h/2-0.17],[0.21,h/2-0.10]];
+        for(let t=0;t<=1;t+=0.025){
+          // Quadratic bezier (approx)
+          let x=(1-t)*(1-t)*C[0][0]+2*(1-t)*t*C[1][0]+t*t*C[2][0];
+          let y=(1-t)*(1-t)*C[0][1]+2*(1-t)*t*C[1][1]+t*t*C[2][1];
+          pts.push([x,y]);
+        }
+        for(let i=1;i<pts.length;i++){
+          addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#ffaa35",0.011);
+        }
+        // S curve (cubic)
+        let S = [[0.1,-h/2+0.05],[w*0.6,0],[w*0.3,h/2-0.09],[w-0.08,h/2-0.04]];
+        pts=[];
+        for(let t=0;t<=1;t+=0.025){
+          // Cubic bezier
+          let x=Math.pow(1-t,3)*S[0][0]+3*Math.pow(1-t,2)*t*S[1][0]+3*(1-t)*t*t*S[2][0]+t*t*t*S[3][0];
+          let y=Math.pow(1-t,3)*S[0][1]+3*Math.pow(1-t,2)*t*S[1][1]+3*(1-t)*t*t*S[2][1]+t*t*t*S[3][1];
+          pts.push([x,y]);
+        }
+        for(let i=1;i<pts.length;i++){
+          addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#94ffe2",0.014);
+        }
+      }
+    }
+  </script>
+  <!-- A-Frame line component (minimal 3D lines): https://github.com/supermedium/aframe-extras -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+  <script src="https://unpkg.com/three@0.153.0/examples/js/lines/Line2.js"></script>
+  <script src="https://unpkg.com/three@0.153.0/examples/js/lines/LineGeometry.js"></script>
+  <script src="https://unpkg.com/three@0.153.0/examples/js/lines/LineMaterial.js"></script>
+  <script>
+    // A super simple a-frame "line" component, skipping extra dashing (for looks only)
+    AFRAME.registerComponent('line', {
+      schema: {
+        start: {type: 'vec3'},
+        end: {type: 'vec3'},
+        color: {type:'color',default:'#fff'},
+        opacity: {type: 'number', default:1},
+        dashSize: {type:'number',default:0},
+        gapSize: {type:'number',default:0}
+      },
+      init: function(){
+        const data = this.data;
+        let geometry = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(...data.start),
+          new THREE.Vector3(...data.end)
+        ]);
+        let mat = new THREE.LineBasicMaterial({
+          color: new THREE.Color(data.color),
+          transparent: true,
+          opacity: data.opacity
+        });
+        let line = new THREE.Line(geometry, mat);
+        this.el.setObject3D('mesh', line);
+      }
+    });
+  </script>
+</body>
+</html>
