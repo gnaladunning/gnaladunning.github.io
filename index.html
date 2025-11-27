@@ -2,17 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Compositional Geometry Analyzer - AR Web</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Compositional Geometry Analyzer - AR Web (iOS Optimized)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <!-- MindAR and A-Frame CDN -->
   <script src="https://cdn.jsdelivr.net/npm/aframe@1.3.0/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mindar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
   <style>
-    body {
-      margin:0; padding:0; background: #181818;
-      color: #fff; font-family:sans-serif;
+    html, body {
+      margin:0; padding:0; width:100%; height:100%;
+      background: #181818; color: #fff; font-family:sans-serif;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
       overflow: hidden;
     }
+    input[type="file"] { font-size: 1em; }
     #imageInput {
       position: absolute;
       top: 1em; left: 1em;
@@ -46,39 +52,30 @@
       z-index:1;
     }
     .aframe-container {
-      width:100vw !important;
-      height:100vh !important;
-      position:absolute;
-      left:0; top:0;
-      pointer-events:auto;
-      z-index:1;
-      background:#111;
-    }
-    #cameraFeed {
-      position: fixed;
-      left: 0;
-      top: 0;
       width: 100vw !important;
       height: 100vh !important;
-      object-fit: cover;
-      z-index: 0;
-      background: #000;
-      /* Remove display: none */
-      opacity: 0.999; /* Almost fully opaque to help debug */
-      pointer-events: none;
+      position: absolute; left:0; top:0;
+      pointer-events:auto; z-index:1; background:#111;
     }
+    /* Hide native video on iOS safari as it can't be reliably used as background */
+    #cameraFeed {
+      display: none !important;
+    }
+    /* iOS Button tweak */
+    ::-webkit-file-upload-button { font-family: sans-serif; font-size: 1em; }
   </style>
 </head>
 <body>
   <div id="instructions">
-    <b>Compositional Geometry AR Analyzer</b><br>
+    <b>Compositional Geometry AR Analyzer<br/>(iOS Optimized)</b><br>
     1. Upload a photo or artwork.<br>
-    2. Allow camera access when prompted.<br>
-    3. Point the device camera at the real image.<br>
-    4. Geometrical overlays (thirds, diagonals, curves, perspective, advanced element analysis) align in AR over the detected image.<br>
-    <b>Move around to explore complex geometry!</b>
+    2. Allow camera access if prompted.<br>
+    3. Point your device camera at the real image.<br>
+    4. Geometrical overlays align in AR over the detected image.<br>
+    <b>Move your device to explore geometry!</b>
     <div style="margin-top:.7em; font-size:.93em;color:#aca;">
-      Powered by <a href="https://hiukim.github.io/mind-ar-js-doc/" style="color:#cfa">MindAR</a> for WebXR/mobile AR.
+      Powered by <a href="https://hiukim.github.io/mind-ar-js-doc/" style="color:#cfa">MindAR</a> for WebXR/mobile AR.<br>
+      For best performance, use Safari on iOS 16+.
     </div>
   </div>
   <input id="imageInput" type="file" accept="image/*">
@@ -92,6 +89,7 @@
   </div>
   <!-- AR container -->
   <div id="ar-container">
+    <!-- The cameraFeed video is now unused/hidden for iOS - See JS for explanation -->
     <video id="cameraFeed" autoplay playsinline muted></video>
     <a-scene
         mindar-image="imageTargetSrc: #img-target; autoStart: false;"
@@ -103,7 +101,7 @@
         class="aframe-container"
         style="width:100vw; height:100vh;">
       <a-assets>
-        <!-- MindAR loads target through this asset image -->
+        <!-- MindAR will load the target image here -->
         <img id="img-target" crossorigin="anonymous" style="display:none;" />
       </a-assets>
       <a-camera make-default position="0 0 0"></a-camera>
@@ -113,16 +111,20 @@
       </a-entity>
     </a-scene>
   </div>
+
   <script>
+    // iOS hack: attempt to enable camera permissions by first creating a user-initiated click before MindAR/A-Frame start
+    // MindAR with A-Frame will use getUserMedia under the hood for the AR background, but on iOS (and some browsers),
+    // the stream is only playable in a <video> shown as a background by the ar engine via WebGL, not a DOM video tag.
+
     const imageInput = document.getElementById('imageInput');
     const imgTarget = document.getElementById('img-target');
     const artPlane = document.querySelector('#artPlane');
     const overlayGroup = document.getElementById('overlayGroup');
     const sceneEl = document.querySelector('a-scene');
-    const cameraFeed = document.getElementById('cameraFeed');
     let arStarted = false;
 
-    // overlays' states
+    // overlay states
     let overlays = {
       thirds: true,
       diagonals: true,
@@ -140,7 +142,18 @@
     document.getElementById('curvesChk').onchange = function(){ overlays.curves = this.checked; drawOverlayGroup(); }
     document.getElementById('complexChk').onchange = function(){ overlays.complex = this.checked; drawOverlayGroup(); }
 
-    // IMAGE (TARGET) UPLOAD + CAMERA HANDLING
+    // Attempt a small audio context unlock as another iOS permission hack
+    function iosUnlock(){
+      if(window.AudioContext||window.webkitAudioContext){
+        let ctx = new (window.AudioContext||window.webkitAudioContext)();
+        let bfr = ctx.createBuffer(1,1,22050);
+        let src = ctx.createBufferSource();
+        src.buffer = bfr; src.connect(ctx.destination);
+        src.start?src.start(0):src.noteOn(0); setTimeout(()=>ctx.close(),120);
+      }
+    }
+
+    // IMAGE (TARGET) UPLOAD
     imageInput.onchange = function(e){
       const file = e.target.files[0];
       if(!file) return;
@@ -150,43 +163,26 @@
         artPlane.setAttribute("material", "src", evt.target.result);
 
         imgTarget.onload = ()=> {
-          // Prompt for camera permission on image load
-          requestCameraPermissionAndStream().then((stream) => {
-            if (!stream) {
-              alert('AR requires camera access.');
-              return;
-            }
-            cameraFeed.srcObject = stream;
-            // cameraFeed.style.display = 'block'; // Normal
-            // cameraFeed.width = window.innerWidth;
-            // cameraFeed.height = window.innerHeight;
-            // cameraFeed.setAttribute('width', window.innerWidth);
-            // cameraFeed.setAttribute('height', window.innerHeight);
-            cameraFeed.play();
-            if (arStarted) {
-              alert("For a new image, please refresh and upload again. MindAR dynamic target is experimental.");
-            } else {
-              startMindAR();
-            }
-          });
+          // iOS: Camera is started only when the user clicks (from file-input)
+          if (arStarted) {
+            alert("For a new image, please refresh and upload again.");
+            return;
+          }
+          iosUnlock(); // try to unlock camera/audio for iOS
+          setTimeout(() => {
+            startMindAR();
+          }, 50); // allow events to flush
         };
       };
       reader.readAsDataURL(file);
     };
 
-    // CAMERA HANDLING Fix: Both permission and stream for debugging camera use
-    async function requestCameraPermissionAndStream() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: {ideal: "environment"} }, audio: false });
-        return stream;
-      } catch (e) {
-        return false;
-      }
-    }
-
-    // Start MindAR and hide instruction overlay
+    // MindAR start
     function startMindAR() {
+      // On iOS, camera is handled in WebGL by MindAR/A-Frame,
+      // not through a DOM video element (video#cameraFeed).
+      // Safari will prompt for permissions as needed.
+      // Don't show DOM cameraFeed, rely on AR overlay for video + scene.
       sceneEl.components["mindar-image"].start().then(() => {
         arStarted = true;
         document.getElementById('instructions').style.display = 'none';
@@ -204,10 +200,10 @@
     function drawOverlayGroup() {
       clearOverlayGroup();
       const w = 1, h = 0.7;
-      // Lines are now thicker
+      // Lines bolder for iOS retina screens
       const colorAlpha = "0.97";
-      const bold = 0.036; // standard
-      const dashBold = 0.025; // dash
+      const bold = 0.042; // iOS: slightly bigger for clarity
+      const dashBold = 0.027; // dash
       function addLine(x1, y1, x2, y2, col="#FF0", linewidth=bold, dash) {
         const seg = document.createElement("a-entity");
         seg.setAttribute("line", {
@@ -216,7 +212,7 @@
           color: col,
           opacity: colorAlpha,
           linewidth: linewidth,
-          dashSize: dash ? dash : 0, // enable dash if needed
+          dashSize: dash ? dash : 0,
           gapSize: dash ? dash : 0
         });
         overlayGroup.appendChild(seg);
@@ -270,8 +266,7 @@
         for(let i=0;i<lines;i++){
           let angle = Math.PI*2*i/lines;
           let rx = Math.cos(angle), ry = Math.sin(angle);
-          addLine(cx,cy,
-            cx+rx*(w),cy+ry*(h/1.5),"#FFA542",bold*0.95);
+          addLine(cx,cy, cx+rx*(w),cy+ry*(h/1.5),"#FFA542",bold*0.95);
         }
         for(let j=1;j<6;j++){
           let y=-h/2 + j*(h/6);
@@ -334,25 +329,18 @@
       }
     }
 
-    // Try to resize cameraFeed video to window 
-    function resizeCameraFeed(){
-      cameraFeed.width = window.innerWidth;
-      cameraFeed.height = window.innerHeight;
-      cameraFeed.style.width = "100vw";
-      cameraFeed.style.height = "100vh";
+    // On load and resize, try to adjust the AR scene container for iOS notch etc.
+    function resizeARContainer(){
+      document.body.style.height = window.innerHeight + 'px';
+      document.getElementById('ar-container').style.height = window.innerHeight + 'px';
+      document.getElementById('ar-container').style.width = window.innerWidth + 'px';
     }
-    window.addEventListener('resize', resizeCameraFeed);
+    window.addEventListener('resize', resizeARContainer);
+    window.addEventListener('orientationchange', resizeARContainer);
+    window.addEventListener('DOMContentLoaded', resizeARContainer);
 
-    // On load ensure video gets sized
-    window.addEventListener('DOMContentLoaded', resizeCameraFeed);
-
-    // Extra debugging: Log errors if camera video doesn't play
-    cameraFeed.addEventListener('error', (e) => {
-      console.error('Camera video error:', e);
-    });
-
-    // Log video playing for debugging
-    cameraFeed.addEventListener('playing', ()=>{console.log('Camera feed playing!')});
+    // HACK: iOS: Prevent scroll bouncing and unwanted resize
+    document.body.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive:false });
   </script>
   <!-- Enhanced A-Frame line component with linewidth support -->
   <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
