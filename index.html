@@ -55,9 +55,17 @@
       background:#111;
     }
     #cameraFeed {
-      display: none;
-      width: 0;
-      height: 0;
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover;
+      z-index: 0;
+      background: #000;
+      /* Remove display: none */
+      opacity: 0.999; /* Almost fully opaque to help debug */
+      pointer-events: none;
     }
   </style>
 </head>
@@ -84,6 +92,7 @@
   </div>
   <!-- AR container -->
   <div id="ar-container">
+    <video id="cameraFeed" autoplay playsinline muted></video>
     <a-scene
         mindar-image="imageTargetSrc: #img-target; autoStart: false;"
         color-space="sRGB"
@@ -103,8 +112,6 @@
         <a-entity id="overlayGroup"></a-entity>
       </a-entity>
     </a-scene>
-    <!-- Real camera feed (only visible when AR started; used as workaround for mobile browser issues) -->
-    <video id="cameraFeed" autoplay playsinline muted></video>
   </div>
   <script>
     const imageInput = document.getElementById('imageInput');
@@ -150,8 +157,12 @@
               return;
             }
             cameraFeed.srcObject = stream;
-            cameraFeed.style.display = 'block'; // for debugging visibility (set to none in production)
-            cameraFeed.width = 0; cameraFeed.height = 0;
+            // cameraFeed.style.display = 'block'; // Normal
+            // cameraFeed.width = window.innerWidth;
+            // cameraFeed.height = window.innerHeight;
+            // cameraFeed.setAttribute('width', window.innerWidth);
+            // cameraFeed.setAttribute('height', window.innerHeight);
+            cameraFeed.play();
             if (arStarted) {
               alert("For a new image, please refresh and upload again. MindAR dynamic target is experimental.");
             } else {
@@ -322,6 +333,26 @@
         }
       }
     }
+
+    // Try to resize cameraFeed video to window 
+    function resizeCameraFeed(){
+      cameraFeed.width = window.innerWidth;
+      cameraFeed.height = window.innerHeight;
+      cameraFeed.style.width = "100vw";
+      cameraFeed.style.height = "100vh";
+    }
+    window.addEventListener('resize', resizeCameraFeed);
+
+    // On load ensure video gets sized
+    window.addEventListener('DOMContentLoaded', resizeCameraFeed);
+
+    // Extra debugging: Log errors if camera video doesn't play
+    cameraFeed.addEventListener('error', (e) => {
+      console.error('Camera video error:', e);
+    });
+
+    // Log video playing for debugging
+    cameraFeed.addEventListener('playing', ()=>{console.log('Camera feed playing!')});
   </script>
   <!-- Enhanced A-Frame line component with linewidth support -->
   <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
