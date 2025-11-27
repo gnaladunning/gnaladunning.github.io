@@ -59,11 +59,11 @@
 <body>
   <div id="instructions">
     <b>Compositional Geometry AR Analyzer</b><br>
-    1. Upload or select a photo or artwork.<br>
+    1. Upload a photo or artwork.<br>
     2. Allow camera access when prompted.<br>
-    3. Point device camera at the real image.<br>
-    4. Compositional overlays (thirds, diagonals, curves, perspective) align in AR over the tracked image.<br>
-    <b>Move around to analyze!</b>
+    3. Point the device camera at the real image.<br>
+    4. Geometrical overlays (thirds, diagonals, curves, perspective, advanced element analysis) align in AR over the detected image.<br>
+    <b>Move around to explore complex geometry!</b>
     <div style="margin-top:.7em; font-size:.93em;color:#aca;">
       Powered by <a href="https://hiukim.github.io/mind-ar-js-doc/" style="color:#cfa">MindAR</a> for WebXR/mobile AR.
     </div>
@@ -75,6 +75,7 @@
     <label><input type="checkbox" id="goldenChk"> Golden Ratio</label>
     <label><input type="checkbox" id="perspectiveChk"> Perspective</label>
     <label><input type="checkbox" id="curvesChk"> Dynamic Curves</label>
+    <label><input type="checkbox" id="complexChk" checked> Complex Relationships</label>
   </div>
   <!-- AR container: ensures full-viewport for A-Frame/camera -->
   <div id="ar-container">
@@ -82,7 +83,7 @@
         mindar-image="imageTargetSrc: #img-target; autoStart: false;"
         color-space="sRGB"
         embedded
-        renderer="precision: mediump; antialias: true;"
+        renderer="precision: highp; antialias: true;"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: true"
         class="aframe-container"
@@ -107,13 +108,15 @@
     const overlayGroup = document.getElementById('overlayGroup');
     const sceneEl = document.querySelector('a-scene');
     let arStarted = false;
+
     // overlays' states
     let overlays = {
       thirds: true,
       diagonals: true,
       golden: false,
       perspective: false,
-      curves: false
+      curves: false,
+      complex: true
     };
 
     // Checkbox controls
@@ -122,8 +125,9 @@
     document.getElementById('goldenChk').onchange = function(){ overlays.golden = this.checked; drawOverlayGroup(); }
     document.getElementById('perspectiveChk').onchange = function(){ overlays.perspective = this.checked; drawOverlayGroup(); }
     document.getElementById('curvesChk').onchange = function(){ overlays.curves = this.checked; drawOverlayGroup(); }
-    
-    // Handle photo/art upload
+    document.getElementById('complexChk').onchange = function(){ overlays.complex = this.checked; drawOverlayGroup(); }
+
+    // Ensure camera permission is requested IMMEDIATELY on image load
     imageInput.onchange = function(e){
       const file = e.target.files[0];
       if(!file) return;
@@ -132,26 +136,39 @@
         imgTarget.src = evt.target.result;
         artPlane.setAttribute("material", "src", evt.target.result);
 
-        imgTarget.onload = () => {
-          // On load, (re)start AR scene for tracking
-          if (arStarted) {
-            alert("For a new image, please refresh the page, then upload again. MindAR dynamic compile is experimental.");
-          } else {
-            // Start MindAR as soon as the target is loaded
-            startMindAR();
-          }
+        imgTarget.onload = ()=> {
+          // Prompt for camera permission as soon as possible
+          requestCameraPermission().then((accessOk) => {
+            if (!accessOk) {
+              alert('AR requires camera access.');
+              return;
+            }
+            if (arStarted) {
+              alert("For a new image, please refresh and upload again. MindAR dynamic target is experimental.");
+            } else {
+              startMindAR();
+            }
+          });
         };
       };
       reader.readAsDataURL(file);
     };
 
-    // Function to request camera, begin MindAR
+    // Ask camera permission
+    async function requestCameraPermission() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // Start MindAR and hide instruction overlay
     function startMindAR() {
-      // Wait for user permission (required by browser)
-      // show camera, MindAR overlays
       sceneEl.components["mindar-image"].start().then(() => {
         arStarted = true;
-        // Hide instructions overlay for immersion
         document.getElementById('instructions').style.display = 'none';
         drawOverlayGroup();
       }).catch(err => {
@@ -163,12 +180,16 @@
       while(overlayGroup.firstChild) overlayGroup.removeChild(overlayGroup.firstChild);
     }
 
+    // Helper to draw overlays, now with bolder lines and new complex-relationship overlays
     function drawOverlayGroup() {
       clearOverlayGroup();
-      // Unit: artPlane = width 1, height ~0.7 (matches ~3:2, common art/photo)
-      const w = 1, h = 0.7, colorAlpha = "0.8";
+      const w = 1, h = 0.7;
+      // Lines are now thicker
+      const colorAlpha = "0.97";
+      const bold = 0.036; // standard
+      const dashBold = 0.025; // dash
       // Helper: add overlay a-frame entities
-      function addLine(x1, y1, x2, y2, col="#FF0", dash) {
+      function addLine(x1, y1, x2, y2, col="#FF0", linewidth=bold, dash) {
         // In local plane coordinates, at z=0.001 (above plane)
         const seg = document.createElement("a-entity");
         seg.setAttribute("line", {
@@ -176,7 +197,7 @@
           end: `${x2} ${y2} 0.001`,
           color: col,
           opacity: colorAlpha,
-          visible: true,
+          linewidth: linewidth,
           dashSize: dash ? dash : 0, // enable dash if needed
           gapSize: dash ? dash : 0
         });
@@ -186,38 +207,38 @@
       if(overlays.thirds){
         for(let i=1;i<=2;i++){
           // Vertical
-          addLine(w*i/3,-h/2,w*i/3,h/2,"#FF0");
+          addLine(w*i/3,-h/2,w*i/3,h/2,"#FFD600",bold);
           // Horizontal
-          addLine(0,-h/2+i*(h/3),w,-h/2+i*(h/3),"#FF0");
+          addLine(0,-h/2+i*(h/3),w,-h/2+i*(h/3),"#FFD600",bold);
         }
       }
       // Diagonals (main and from thirds)
       if(overlays.diagonals){
         // Main
-        addLine(0,-h/2,w,h/2,"#4ef");
-        addLine(w,-h/2,0,h/2,"#4ef");
+        addLine(0,-h/2,w,h/2,"#00D4F6",bold);
+        addLine(w,-h/2,0,h/2,"#00D4F6",bold);
         // Thirds diagonals (dashed)
-        const dashSize = 0.01;
+        const dashSize = 0.025;
         for(let i=1;i<=2;i++){
-          addLine(w*i/3,-h/2,w,i*h/3-h/2,"#4ef",dashSize);
-          addLine(0,-h/2+i*(h/3),w*i/3,h/2,"#4ef",dashSize);
-          addLine(w-w*i/3,-h/2,0,i*h/3-h/2,"#4ef",dashSize);
-          addLine(w,-h/2+i*(h/3),w-w*i/3,h/2,"#4ef",dashSize);
+          addLine(w*i/3,-h/2,w,i*h/3-h/2,"#00D4F6",dashBold,dashSize);
+          addLine(0,-h/2+i*(h/3),w*i/3,h/2,"#00D4F6",dashBold,dashSize);
+          addLine(w-w*i/3,-h/2,0,i*h/3-h/2,"#00D4F6",dashBold,dashSize);
+          addLine(w,-h/2+i*(h/3),w-w*i/3,h/2,"#00D4F6",dashBold,dashSize);
         }
       }
       // Golden Ratio grid and spirals (approx)
       if(overlays.golden){
         const phi = 0.618;
         // Vertical/horizontal phi lines
-        addLine(w*phi,-h/2,w*phi,h/2,"#8aff6e");
-        addLine(w*(1-phi),-h/2,w*(1-phi),h/2,"#8aff6e");
-        addLine(0,-h/2+h*phi,w,-h/2+h*phi,"#8aff6e");
-        addLine(0,-h/2+h*(1-phi),w,-h/2+h*(1-phi),"#8aff6e");
+        addLine(w*phi,-h/2,w*phi,h/2,"#51FF3D",bold*0.92);
+        addLine(w*(1-phi),-h/2,w*(1-phi),h/2,"#51FF3D",bold*0.92);
+        addLine(0,-h/2+h*phi,w,-h/2+h*phi,"#51FF3D",bold*0.92);
+        addLine(0,-h/2+h*(1-phi),w,-h/2+h*(1-phi),"#51FF3D",bold*0.92);
         // Optional: golden spiral with dots
         function goldenSpiral(cx,cy,flipX,flipY,col){
           let pts=[];
           let a=0, maxA=1.6*Math.PI, steps=90;
-          let r0 = (Math.min(w,h)*0.55)*0.99;
+          let r0 = (Math.min(w,h)*0.56)*0.99;
           for(let s=0;s<steps;s++){
             let r = r0 * Math.pow(phi, a/(2*Math.PI));
             let x=cx + flipX*r*Math.cos(a);
@@ -226,13 +247,13 @@
             a += maxA/steps;
           }
           for(let i=1;i<pts.length;i++){
-            addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],col,0);
+            addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],col,0.02);
           }
         }
-        goldenSpiral(0,-h/2,1,1,"#8aff6e"); // TL
-        goldenSpiral(w,-h/2,-1,1,"#8aff6e");
-        goldenSpiral(0,h/2,1,-1,"#8aff6e");
-        goldenSpiral(w,h/2,-1,-1,"#8aff6e");
+        goldenSpiral(0,-h/2,1,1,"#51FF3D");
+        goldenSpiral(w,-h/2,-1,1,"#51FF3D");
+        goldenSpiral(0,h/2,1,-1,"#51FF3D");
+        goldenSpiral(w,h/2,-1,-1,"#51FF3D");
       }
       // Perspective lines (center vanishing point)
       if(overlays.perspective){
@@ -242,12 +263,12 @@
           let angle = Math.PI*2*i/lines;
           let rx = Math.cos(angle), ry = Math.sin(angle);
           addLine(cx,cy,
-            cx+rx*(w),cy+ry*(h/1.5),"#f85",0);
+            cx+rx*(w),cy+ry*(h/1.5),"#FFA542",bold*0.95);
         }
         for(let j=1;j<6;j++){
           // horizontal ortho
           let y=-h/2 + j*(h/6);
-          addLine(0,y,w,y,"#f85",0.008);
+          addLine(0,y,w,y,"#FFA542",dashBold,0.016);
         }
       }
       // Dynamic curves (C/S)
@@ -262,7 +283,7 @@
           pts.push([x,y]);
         }
         for(let i=1;i<pts.length;i++){
-          addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#ffaa35",0.011);
+          addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#FFBF00",0.033);
         }
         // S curve (cubic)
         let S = [[0.1,-h/2+0.05],[w*0.6,0],[w*0.3,h/2-0.09],[w-0.08,h/2-0.04]];
@@ -274,41 +295,121 @@
           pts.push([x,y]);
         }
         for(let i=1;i<pts.length;i++){
-          addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#94ffe2",0.014);
+          addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#94ffe2",0.025);
+        }
+      }
+      // Complex relationships: grid intersections, symmetries, radii, polygons, axes
+      if(overlays.complex){
+        // Center lines
+        addLine(w/2,-h/2,w/2,h/2,"#DC5DF6",bold*1.12); // vertical center
+        addLine(0,h/2,w,h/2,"#DC5DF6",bold*1.12); // horizontal center
+        // Draw symmetry axes (vertical, horizontal and diagonal bisectors)
+        addLine(0,-h/2,w,h/2,"#20F629",0.031); // diag1
+        addLine(w,-h/2,0,h/2,"#20F629",0.031); // diag2
+
+        // Draw circumscribed ellipse indicating visual movement
+        let cx=w/2, cy=0, rx=w/2*0.88, ry=h/2*0.88;
+        let lastCircle=null;
+        for(let a=0;a<360;a+=8){
+          let rad = a*Math.PI/180, nx = cx + rx*Math.cos(rad), ny = cy + ry*Math.sin(rad);
+          if(lastCircle) addLine(lastCircle[0], lastCircle[1], nx, ny, "#41FCFF",0.024);
+          lastCircle = [nx, ny];
+        }
+        // Star relationships (pentagram/hexagram) for classical harmony
+        function star(cx,cy,r,points,col,wide){
+          let arr = [];
+          for(let i=0;i<points;i++){
+            let rad = (i/points)*2*Math.PI - Math.PI/2;
+            arr.push([cx+r*Math.cos(rad),cy+r*Math.sin(rad)]);
+          }
+          for(let step=2;step<=(points>>1);step++){
+            for(let i=0;i<points;i++){
+              let j = (i+step)%points;
+              addLine(arr[i][0],arr[i][1],arr[j][0],arr[j][1],col,wide);
+            }
+          }
+        }
+        star(w/2,0,Math.min(w,h)/2*0.62,5,"#FC3898",0.023); // pentagramal
+        star(w/2,0,Math.min(w,h)/2*0.54,6,"#45D1F6",0.018); // hexagram
+
+        // Radial lines from center
+        for(let r=0;r<8;r++){
+          let ang=Math.PI*2*r/8;
+          addLine(w/2,0,w/2+Math.cos(ang)*(w/2),0+Math.sin(ang)*(h/2),"#FCA237",0.018);
         }
       }
     }
   </script>
-  <!-- A-Frame line component (minimal 3D lines): https://github.com/supermedium/aframe-extras -->
+  <!-- Enhanced A-Frame line component with linewidth support -->
   <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
   <script src="https://unpkg.com/three@0.153.0/examples/js/lines/Line2.js"></script>
   <script src="https://unpkg.com/three@0.153.0/examples/js/lines/LineGeometry.js"></script>
   <script src="https://unpkg.com/three@0.153.0/examples/js/lines/LineMaterial.js"></script>
   <script>
-    // A super simple a-frame "line" component, skipping extra dashing (for looks only)
+    // Enhanced "line" component with linewidth interpreted by THREE.Line2 for wide lines
     AFRAME.registerComponent('line', {
       schema: {
         start: {type: 'vec3'},
         end: {type: 'vec3'},
         color: {type:'color',default:'#fff'},
         opacity: {type: 'number', default:1},
+        linewidth: {type:'number',default:0.025},
         dashSize: {type:'number',default:0},
         gapSize: {type:'number',default:0}
       },
       init: function(){
         const data = this.data;
-        let geometry = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(...data.start),
-          new THREE.Vector3(...data.end)
-        ]);
-        let mat = new THREE.LineBasicMaterial({
-          color: new THREE.Color(data.color),
-          transparent: true,
-          opacity: data.opacity
-        });
-        let line = new THREE.Line(geometry, mat);
-        this.el.setObject3D('mesh', line);
+        // Use THREE.Line2 for wider/thicker lines
+        if (THREE.Line2 && THREE.LineGeometry && THREE.LineMaterial) {
+          let positions = [
+            data.start[0], data.start[1], data.start[2],
+            data.end[0], data.end[1], data.end[2]
+          ];
+          let geometry = new THREE.LineGeometry();
+          geometry.setPositions(positions);
+          let matOpt = {
+            color: new THREE.Color(data.color),
+            linewidth: data.linewidth * 10, // Scale for Three.js
+            transparent: true,
+            opacity: data.opacity,
+            dashed: data.dashSize > 0,
+            dashSize: data.dashSize,
+            gapSize: data.gapSize,
+            depthTest: false
+          };
+          let mat = new THREE.LineMaterial(matOpt);
+          mat.resolution.set(window.innerWidth, window.innerHeight);
+          let line;
+          if(matOpt.dashed){
+            line = new THREE.Line2(geometry, mat);
+            line.computeLineDistances();
+          } else {
+            line = new THREE.Line2(geometry, mat);
+          }
+          this.el.setObject3D('mesh', line);
+        } else {
+          // Fallback: LineBasicMaterial, not as wide
+          let geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(...data.start),
+            new THREE.Vector3(...data.end)
+          ]);
+          let mat = new THREE.LineBasicMaterial({
+            color: new THREE.Color(data.color),
+            transparent: true,
+            opacity: data.opacity
+          });
+          let line = new THREE.Line(geometry, mat);
+          this.el.setObject3D('mesh', line);
+        }
       }
+    });
+    // Update line resolution on viewport resize (for thick lines)
+    window.addEventListener('resize', ()=>{
+      document.querySelectorAll('a-entity[line]').forEach(el=>{
+        if(el.getObject3D('mesh')&&el.getObject3D('mesh').material&&el.getObject3D('mesh').material.resolution){
+          el.getObject3D('mesh').material.resolution.set(window.innerWidth,window.innerHeight);
+        }
+      });
     });
   </script>
 </body>
