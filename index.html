@@ -27,52 +27,58 @@
       margin:.6em auto; border-radius: 8px; padding: 11px; font-size:.99em;
       z-index: 3; position:relative; text-align:center;
     }
+    #loading {
+      position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7);
+      z-index: 100; color:#fff; display:flex; align-items:center; justify-content:center;
+      font-size:1.3em; display:none;
+    }
   </style>
 </head>
 <body>
   <div id="instructions">
-    <b>Realtime Compositional Geometry AR Analyzer</b> (Experimental)<br>
+    <b>Realtime Compositional Geometry AR Analyzer</b> (Experimental CV Version)<br>
     <ol style="padding-left:1.2em; text-align:left;">
       <li>Allow access to your camera if prompted.</li>
       <li>Point your device camera at images, artworks, or scenes.</li>
-      <li>Compositional overlays will appear live over what you see.</li>
+      <li>Compositional overlays <u>derived from CV analysis</u> will appear live.</li>
     </ol>
     <div style="margin-top:.7em; font-size:.92em;color:#cfa;">
-      No need to upload a photo. Just move your camera over any composition.<br>For best results: use Safari on iOS or Chrome/Edge on Android.
+      Processing is live and may take 1-2 seconds per frame. CV performed with OpenCV.js in-browser.<br>
+      For best results: use Safari on iOS or Chrome/Edge on Android.
     </div>
   </div>
+  <div id="loading">Loading computer vision library&hellip;</div>
   <div class="controls">
-    <label><input type="checkbox" id="thirdsChk" checked> Rule of Thirds</label>
-    <label><input type="checkbox" id="diagonalsChk" checked> Diagonals</label>
-    <label><input type="checkbox" id="goldenChk"> Golden Ratio</label>
-    <label><input type="checkbox" id="perspectiveChk"> Perspective</label>
-    <label><input type="checkbox" id="curvesChk"> Dynamic Curves</label>
-    <label><input type="checkbox" id="complexChk" checked> Complex Relationships</label>
+    <label><input type="checkbox" id="edgesChk" checked> Edges</label>
+    <label><input type="checkbox" id="linesChk" checked> Lines</label>
+    <label><input type="checkbox" id="contoursChk"> Contours</label>
+    <label><input type="checkbox" id="circlesChk"> Circles</label>
+    <label><input type="checkbox" id="cornersChk"> Corners</label>
   </div>
   <video id="cameraFeed" autoplay playsinline muted></video>
   <canvas id="overlayCanvas"></canvas>
 
+  <!-- OpenCV.js: Latest CDN version -->
+  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
   <script>
-    // Camera
     const video = document.getElementById('cameraFeed');
     const canvas = document.getElementById('overlayCanvas');
     const ctx = canvas.getContext('2d');
+    const loadingDiv = document.getElementById('loading');
 
-    // Overlay checkbox state
+    // Overlay options
     const overlays = {
-      thirds: true,
-      diagonals: true,
-      golden: false,
-      perspective: false,
-      curves: false,
-      complex: true
+      edges: true,
+      lines: true,
+      contours: false,
+      circles: false,
+      corners: false
     };
-    document.getElementById('thirdsChk').onchange = function(){ overlays.thirds = this.checked; };
-    document.getElementById('diagonalsChk').onchange = function(){ overlays.diagonals = this.checked; };
-    document.getElementById('goldenChk').onchange = function(){ overlays.golden = this.checked; };
-    document.getElementById('perspectiveChk').onchange = function(){ overlays.perspective = this.checked; };
-    document.getElementById('curvesChk').onchange = function(){ overlays.curves = this.checked; };
-    document.getElementById('complexChk').onchange = function(){ overlays.complex = this.checked; };
+    document.getElementById('edgesChk').onchange = function(){ overlays.edges = this.checked; };
+    document.getElementById('linesChk').onchange = function(){ overlays.lines = this.checked; };
+    document.getElementById('contoursChk').onchange = function(){ overlays.contours = this.checked; };
+    document.getElementById('circlesChk').onchange = function(){ overlays.circles = this.checked; };
+    document.getElementById('cornersChk').onchange = function(){ overlays.corners = this.checked; };
 
     function resize() {
       const w = window.innerWidth, h = window.innerHeight;
@@ -93,147 +99,167 @@
         video.srcObject = stream;
         await video.play();
         document.getElementById('instructions').style.display = "none";
-        requestAnimationFrame(drawOverlayGroup);
       } catch(e) {
         alert("Camera error: " + (e.message||e));
       }
     }
     startCamera();
 
-    // Draw overlays on canvas
-    function drawOverlayGroup() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const w = canvas.width, h = canvas.height;
-      ctx.save();
+    // OpenCV setup
+    let cvReady = false;
+    function onOpenCvReady() {
+      loadingDiv.style.display = 'none';
+      cvReady = true;
+      if (video.readyState >= 2) mainLoop();
+      else video.onloadeddata = mainLoop;
+    }
 
-      // Utility
-      function line(x1,y1,x2,y2,col,lw=4,dash) {
-        ctx.strokeStyle = col; ctx.globalAlpha = 0.95; ctx.lineWidth = lw;
-        if(dash) ctx.setLineDash([dash, dash]);
-        else ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
-        ctx.stroke();
+    // Utility: wait for OpenCV if slow network & race with onloadeddata
+    function ensureCVLoaded() {
+      if (!cvReady) loadingDiv.style.display = '';
+      else loadingDiv.style.display = 'none';
+    }
+
+    // The main realtime CV loop
+    function mainLoop() {
+      ensureCVLoaded();
+      if (!(video.videoWidth && video.videoHeight && cvReady)) {
+        setTimeout(mainLoop, 100);
+        return;
       }
-      if(overlays.thirds){
-        ctx.globalAlpha = 1;
-        line(w/3,0,w/3,h,"#FFD600",4);
-        line(w*2/3,0,w*2/3,h,"#FFD600",4);
-        line(0,h/3,w,h/3,"#FFD600",4);
-        line(0,h*2/3,w,h*2/3,"#FFD600",4);
-      }
-      if(overlays.diagonals){
-        line(0,0,w,h,"#00D4F6",4);
-        line(w,0,0,h,"#00D4F6",4);
-        // Some dashed guides diagonally
-        for(let i=1; i<=2; i++){
-          line(w*i/3,0,w*i/3,h,"#00D4F6",2,12);
-          line(0,h*i/3,w,h*i/3,"#00D4F6",2,12);
-        }
-      }
-      if(overlays.golden){
-        const phi = 0.618;
-        line(w*phi,0,w*phi,h,"#51FF3D",3);
-        line(w*(1-phi),0,w*(1-phi),h,"#51FF3D",3);
-        line(0,h*phi,w,h*phi,"#51FF3D",3);
-        line(0,h*(1-phi),w,h*(1-phi),"#51FF3D",3);
-        // Golden spirals
-        function goldenSpiral(cx,cy,flipX,flipY,col){
-          const n = 80;
-          let a=0, maxA=1.6*Math.PI;
-          let r0 = Math.min(w,h)*0.49;
-          ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([]);
-          ctx.beginPath();
-          for(let i=0;i<=n;i++){
-            let ang = a + maxA*i/n;
-            let r = r0 * Math.pow(phi, ang/(2*Math.PI));
-            let x = cx + flipX*r*Math.cos(ang);
-            let y = cy + flipY*r*Math.sin(ang);
-            if(i===0) ctx.moveTo(x,y);
-            else ctx.lineTo(x,y);
+      resize();
+
+      // Setup OpenCV matrices
+      const src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+      const gray = new cv.Mat();
+      const edges = new cv.Mat();
+      const lines = new cv.Mat();
+      const hierarchy = new cv.Mat();
+      const contours = new cv.MatVector();
+      const circles = new cv.Mat();
+      const corners = new cv.Mat();
+
+      function processFrame() {
+        // Draw the video frame on a temp canvas (offscreen)
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+
+        // Compute aspect-correct size
+        const vw = canvas.width, vh = canvas.height;
+        ctx.drawImage(video, 0, 0, vw, vh);
+
+        // Get image data for OpenCV
+        let imageData = ctx.getImageData(0,0,vw,vh);
+        src.data.set(imageData.data);
+
+        // Convert BGR -> Grayscale
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+        // Edges
+        if (overlays.edges) {
+          cv.Canny(gray, edges, 60, 140, 3, false);
+          // Visualize edges in green
+          let rgba = new cv.Mat();
+          cv.cvtColor(edges, rgba, cv.COLOR_GRAY2RGBA);
+          for (let i=0; i<rgba.data.length; i+=4) {
+            if (rgba.data[i]>0) { rgba.data[i]=46; rgba.data[i+1]=255; rgba.data[i+2]=103;}
+            // else leave background as is (transparent)
           }
-          ctx.stroke();
+          ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba.data), vw, vh),0,0);
+          rgba.delete();
         }
-        goldenSpiral(0,0,1,1,"#51FF3D");
-        goldenSpiral(w,0,-1,1,"#51FF3D");
-        goldenSpiral(0,h,1,-1,"#51FF3D");
-        goldenSpiral(w,h,-1,-1,"#51FF3D");
-      }
-      if(overlays.perspective){
-        let cx=w/2,cy=h/2;
-        for(let i=0;i<11;i++){
-          let ang=Math.PI*2*i/11;
-          let rx=Math.cos(ang), ry=Math.sin(ang);
-          line(cx,cy,cx+rx*w,cy+ry*h,"#FFA542",2.5);
-        }
-        for(let j=1;j<6;j++){
-          let y=h*j/6;
-          line(0,y,w,y,"#FFA542",1.5,8);
-        }
-      }
-      if(overlays.curves){
-        ctx.strokeStyle="#FFBF00";
-        ctx.lineWidth=3;
-        let C=[[w*0.14, h*0.07],[w-0.12*w, h-0.17*h],[w*0.21,h-0.10*h]];
-        ctx.beginPath();
-        for(let t=0; t<=1; t+=0.027){
-          let x=(1-t)*(1-t)*C[0][0]+2*(1-t)*t*C[1][0]+t*t*C[2][0];
-          let y=(1-t)*(1-t)*C[0][1]+2*(1-t)*t*C[1][1]+t*t*C[2][1];
-          t===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-        }
-        ctx.stroke();
-        // S curve
-        ctx.strokeStyle="#94ffe2";
-        let S=[[w*0.1,h*0.05],[w*0.6,h/2],[w*0.3,h-0.09*h],[w-0.08*w,h-0.04*h]];
-        ctx.beginPath();
-        for(let t=0;t<=1;t+=0.027){
-          let x=Math.pow(1-t,3)*S[0][0]+3*Math.pow(1-t,2)*t*S[1][0]+3*(1-t)*t*t*S[2][0]+t*t*t*S[3][0];
-          let y=Math.pow(1-t,3)*S[0][1]+3*Math.pow(1-t,2)*t*S[1][1]+3*(1-t)*t*t*S[2][1]+t*t*t*S[3][1];
-          t===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-        }
-        ctx.stroke();
-      }
-      if(overlays.complex){
-        ctx.strokeStyle="#DC5DF6";
-        ctx.lineWidth=4.2;
-        line(w/2,0,w/2,h,"#DC5DF6",4.2);
-        line(0,h/2,w,h/2,"#DC5DF6",4.2);
-        line(0,0,w,h,"#20F629",2.6);
-        line(w,0,0,h,"#20F629",2.6);
 
-        // Ellipse
-        ctx.save();
-        ctx.strokeStyle="#41FCFF";ctx.lineWidth=2;
-        ctx.beginPath();
-        ctx.ellipse(w/2,h/2,w*0.4,h*0.33,0,0,2*Math.PI);
-        ctx.stroke();
-        ctx.restore();
+        // Lines (Hough)
+        if (overlays.lines) {
+          cv.Canny(gray, edges, 60, 140, 3, false);
+          cv.HoughLinesP(edges, lines, 1, Math.PI/180, 72, 60, 10);
 
-        // Star overlays
-        function drawStar(cx,cy,r,points,col){
           ctx.save();
-          ctx.strokeStyle=col; ctx.lineWidth=2;
-          let step=2;
-          for(let i=0;i<points;i++){
-            let x1=cx + r*Math.cos((i/points)*2*Math.PI-Math.PI/2);
-            let y1=cy + r*Math.sin((i/points)*2*Math.PI-Math.PI/2);
-            for(let j=1;j<=Math.floor(points/2);j++){
-              let x2=cx + r*Math.cos(((i+step*j)%points/points)*2*Math.PI-Math.PI/2);
-              let y2=cy + r*Math.sin(((i+step*j)%points/points)*2*Math.PI-Math.PI/2);
-              ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-            }
+          ctx.globalAlpha = 0.7;
+          ctx.strokeStyle = "#FFD600";
+          ctx.lineWidth = 4;
+          for (let i = 0; i < lines.rows; ++i) {
+            let l = lines.data32S.subarray(i*4, i*4+4);
+            ctx.beginPath();
+            ctx.moveTo(l[0]*vw/edges.cols, l[1]*vh/edges.rows);
+            ctx.lineTo(l[2]*vw/edges.cols, l[3]*vh/edges.rows);
+            ctx.stroke();
           }
           ctx.restore();
         }
-        drawStar(w/2,h/2,Math.min(w,h)*0.24,5,"#FC3898");
-        drawStar(w/2,h/2,Math.min(w,h)*0.20,6,"#45D1F6");
-        for(let r=0;r<8;r++){
-          let ang=Math.PI*2*r/8;
-          line(w/2,h/2,w/2+Math.cos(ang)*(w/2),h/2+Math.sin(ang)*(h/2),"#FCA237",2);
+
+        // Contours
+        if (overlays.contours) {
+          // Use Canny edges for contours
+          cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+          ctx.save();
+          ctx.globalAlpha = 0.7;
+          ctx.lineWidth = 2.5;
+          for (let i=0; i < contours.size(); ++i) {
+            let c = contours.get(i);
+            ctx.beginPath();
+            for (let j=0; j < c.rows; ++j) {
+              let pt = c.data32S.subarray(j*2, j*2+2);
+              let x = pt[0] * vw / edges.cols;
+              let y = pt[1] * vh / edges.rows;
+              if (j==0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = "#51FF3D";
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // Circles (Hough)
+        if (overlays.circles) {
+          // Blur to help circle detection
+          let blur = new cv.Mat();
+          cv.medianBlur(gray, blur, 7);
+          cv.HoughCircles(blur, circles, cv.HOUGH_GRADIENT, 1, 80, 130, 35, 15, Math.min(vw,vh)/2);
+          ctx.save();
+          ctx.globalAlpha = 1.0;
+          ctx.strokeStyle = "#00D4F6";
+          ctx.lineWidth = 4;
+          for (let i=0; i<circles.cols; ++i) {
+            let x = circles.data32F[i*3], y = circles.data32F[i*3+1], r=circles.data32F[i*3+2];
+            ctx.beginPath();
+            ctx.arc(x*vw/gray.cols, y*vh/gray.rows, r*vw/gray.cols, 0, 2*Math.PI);
+            ctx.stroke();
+          }
+          ctx.restore();
+          blur.delete();
+        }
+
+        // Corners (Harris)
+        if (overlays.corners) {
+          cv.cornerHarris(gray, corners, 3, 3, 0.04);
+          let maxVal = 0;
+          for (let y=0; y<corners.rows; y++)
+            for (let x=0; x<corners.cols; x++) {
+              let v = corners.floatAt(y, x);
+              if (v > maxVal) maxVal = v;
+            }
+          ctx.save();
+          ctx.globalAlpha = 1.0;
+          ctx.fillStyle = "#FC3898";
+          for (let y=0; y<corners.rows; y++)
+            for (let x=0; x<corners.cols; x++)
+              if (corners.floatAt(y,x) > 0.1 * maxVal) {
+                let cx = x * vw / corners.cols, cy = y * vh / corners.rows;
+                ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 2*Math.PI); ctx.fill();
+              }
+          ctx.restore();
         }
       }
-      ctx.restore();
-      requestAnimationFrame(drawOverlayGroup);
+
+      // Loop at best possible CV speed (1-3 fps is reasonable in mobile browsers for OpenCV.js)
+      function animatedFrame() {
+        if (video.readyState >= 2 && cvReady) {
+          processFrame();
+        }
+        setTimeout(animatedFrame, 350); // 3fps: reduce if too laggy on mobile
+      }
+      animatedFrame();
     }
   </script>
 </body>
