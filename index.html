@@ -54,6 +54,11 @@
       z-index:1;
       background:#111;
     }
+    #cameraFeed {
+      display: none;
+      width: 0;
+      height: 0;
+    }
   </style>
 </head>
 <body>
@@ -77,7 +82,7 @@
     <label><input type="checkbox" id="curvesChk"> Dynamic Curves</label>
     <label><input type="checkbox" id="complexChk" checked> Complex Relationships</label>
   </div>
-  <!-- AR container: ensures full-viewport for A-Frame/camera -->
+  <!-- AR container -->
   <div id="ar-container">
     <a-scene
         mindar-image="imageTargetSrc: #img-target; autoStart: false;"
@@ -92,14 +97,14 @@
         <!-- MindAR loads target through this asset image -->
         <img id="img-target" crossorigin="anonymous" style="display:none;" />
       </a-assets>
-      <!-- Camera: set makeDefault to true to ensure use as scene camera -->
-      <a-camera make-default position="0 0 0" look-controls="enabled: false"></a-camera>
-      <!-- Main tracked image target entity -->
+      <a-camera make-default position="0 0 0"></a-camera>
       <a-entity mindar-image-target="targetIndex: 0">
         <a-plane id="artPlane" width="1" height="0.7" position="0 0 0" material="shader: flat; transparent:true;"></a-plane>
         <a-entity id="overlayGroup"></a-entity>
       </a-entity>
     </a-scene>
+    <!-- Real camera feed (only visible when AR started; used as workaround for mobile browser issues) -->
+    <video id="cameraFeed" autoplay playsinline muted></video>
   </div>
   <script>
     const imageInput = document.getElementById('imageInput');
@@ -107,6 +112,7 @@
     const artPlane = document.querySelector('#artPlane');
     const overlayGroup = document.getElementById('overlayGroup');
     const sceneEl = document.querySelector('a-scene');
+    const cameraFeed = document.getElementById('cameraFeed');
     let arStarted = false;
 
     // overlays' states
@@ -127,7 +133,7 @@
     document.getElementById('curvesChk').onchange = function(){ overlays.curves = this.checked; drawOverlayGroup(); }
     document.getElementById('complexChk').onchange = function(){ overlays.complex = this.checked; drawOverlayGroup(); }
 
-    // Ensure camera permission is requested IMMEDIATELY on image load
+    // IMAGE (TARGET) UPLOAD + CAMERA HANDLING
     imageInput.onchange = function(e){
       const file = e.target.files[0];
       if(!file) return;
@@ -137,12 +143,15 @@
         artPlane.setAttribute("material", "src", evt.target.result);
 
         imgTarget.onload = ()=> {
-          // Prompt for camera permission as soon as possible
-          requestCameraPermission().then((accessOk) => {
-            if (!accessOk) {
+          // Prompt for camera permission on image load
+          requestCameraPermissionAndStream().then((stream) => {
+            if (!stream) {
               alert('AR requires camera access.');
               return;
             }
+            cameraFeed.srcObject = stream;
+            cameraFeed.style.display = 'block'; // for debugging visibility (set to none in production)
+            cameraFeed.width = 0; cameraFeed.height = 0;
             if (arStarted) {
               alert("For a new image, please refresh and upload again. MindAR dynamic target is experimental.");
             } else {
@@ -154,12 +163,12 @@
       reader.readAsDataURL(file);
     };
 
-    // Ask camera permission
-    async function requestCameraPermission() {
+    // CAMERA HANDLING Fix: Both permission and stream for debugging camera use
+    async function requestCameraPermissionAndStream() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
       try {
-        await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-        return true;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: {ideal: "environment"} }, audio: false });
+        return stream;
       } catch (e) {
         return false;
       }
@@ -188,9 +197,7 @@
       const colorAlpha = "0.97";
       const bold = 0.036; // standard
       const dashBold = 0.025; // dash
-      // Helper: add overlay a-frame entities
       function addLine(x1, y1, x2, y2, col="#FF0", linewidth=bold, dash) {
-        // In local plane coordinates, at z=0.001 (above plane)
         const seg = document.createElement("a-entity");
         seg.setAttribute("line", {
           start: `${x1} ${y1} 0.001`,
@@ -203,21 +210,15 @@
         });
         overlayGroup.appendChild(seg);
       }
-      // Rule of Thirds lines
       if(overlays.thirds){
         for(let i=1;i<=2;i++){
-          // Vertical
           addLine(w*i/3,-h/2,w*i/3,h/2,"#FFD600",bold);
-          // Horizontal
           addLine(0,-h/2+i*(h/3),w,-h/2+i*(h/3),"#FFD600",bold);
         }
       }
-      // Diagonals (main and from thirds)
       if(overlays.diagonals){
-        // Main
         addLine(0,-h/2,w,h/2,"#00D4F6",bold);
         addLine(w,-h/2,0,h/2,"#00D4F6",bold);
-        // Thirds diagonals (dashed)
         const dashSize = 0.025;
         for(let i=1;i<=2;i++){
           addLine(w*i/3,-h/2,w,i*h/3-h/2,"#00D4F6",dashBold,dashSize);
@@ -226,15 +227,12 @@
           addLine(w,-h/2+i*(h/3),w-w*i/3,h/2,"#00D4F6",dashBold,dashSize);
         }
       }
-      // Golden Ratio grid and spirals (approx)
       if(overlays.golden){
         const phi = 0.618;
-        // Vertical/horizontal phi lines
         addLine(w*phi,-h/2,w*phi,h/2,"#51FF3D",bold*0.92);
         addLine(w*(1-phi),-h/2,w*(1-phi),h/2,"#51FF3D",bold*0.92);
         addLine(0,-h/2+h*phi,w,-h/2+h*phi,"#51FF3D",bold*0.92);
         addLine(0,-h/2+h*(1-phi),w,-h/2+h*(1-phi),"#51FF3D",bold*0.92);
-        // Optional: golden spiral with dots
         function goldenSpiral(cx,cy,flipX,flipY,col){
           let pts=[];
           let a=0, maxA=1.6*Math.PI, steps=90;
@@ -255,7 +253,6 @@
         goldenSpiral(0,h/2,1,-1,"#51FF3D");
         goldenSpiral(w,h/2,-1,-1,"#51FF3D");
       }
-      // Perspective lines (center vanishing point)
       if(overlays.perspective){
         let cx=w/2,cy=0;
         let lines = 11;
@@ -266,18 +263,14 @@
             cx+rx*(w),cy+ry*(h/1.5),"#FFA542",bold*0.95);
         }
         for(let j=1;j<6;j++){
-          // horizontal ortho
           let y=-h/2 + j*(h/6);
           addLine(0,y,w,y,"#FFA542",dashBold,0.016);
         }
       }
-      // Dynamic curves (C/S)
       if(overlays.curves){
-        // C curve
         let pts = [];
         let C = [[0.14,-h/2+0.07],[w-0.12,h/2-0.17],[0.21,h/2-0.10]];
         for(let t=0;t<=1;t+=0.025){
-          // Quadratic bezier (approx)
           let x=(1-t)*(1-t)*C[0][0]+2*(1-t)*t*C[1][0]+t*t*C[2][0];
           let y=(1-t)*(1-t)*C[0][1]+2*(1-t)*t*C[1][1]+t*t*C[2][1];
           pts.push([x,y]);
@@ -285,11 +278,9 @@
         for(let i=1;i<pts.length;i++){
           addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#FFBF00",0.033);
         }
-        // S curve (cubic)
         let S = [[0.1,-h/2+0.05],[w*0.6,0],[w*0.3,h/2-0.09],[w-0.08,h/2-0.04]];
         pts=[];
         for(let t=0;t<=1;t+=0.025){
-          // Cubic bezier
           let x=Math.pow(1-t,3)*S[0][0]+3*Math.pow(1-t,2)*t*S[1][0]+3*(1-t)*t*t*S[2][0]+t*t*t*S[3][0];
           let y=Math.pow(1-t,3)*S[0][1]+3*Math.pow(1-t,2)*t*S[1][1]+3*(1-t)*t*t*S[2][1]+t*t*t*S[3][1];
           pts.push([x,y]);
@@ -298,16 +289,11 @@
           addLine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1],"#94ffe2",0.025);
         }
       }
-      // Complex relationships: grid intersections, symmetries, radii, polygons, axes
       if(overlays.complex){
-        // Center lines
-        addLine(w/2,-h/2,w/2,h/2,"#DC5DF6",bold*1.12); // vertical center
-        addLine(0,h/2,w,h/2,"#DC5DF6",bold*1.12); // horizontal center
-        // Draw symmetry axes (vertical, horizontal and diagonal bisectors)
-        addLine(0,-h/2,w,h/2,"#20F629",0.031); // diag1
-        addLine(w,-h/2,0,h/2,"#20F629",0.031); // diag2
-
-        // Draw circumscribed ellipse indicating visual movement
+        addLine(w/2,-h/2,w/2,h/2,"#DC5DF6",bold*1.12);
+        addLine(0,h/2,w,h/2,"#DC5DF6",bold*1.12);
+        addLine(0,-h/2,w,h/2,"#20F629",0.031);
+        addLine(w,-h/2,0,h/2,"#20F629",0.031);
         let cx=w/2, cy=0, rx=w/2*0.88, ry=h/2*0.88;
         let lastCircle=null;
         for(let a=0;a<360;a+=8){
@@ -315,7 +301,6 @@
           if(lastCircle) addLine(lastCircle[0], lastCircle[1], nx, ny, "#41FCFF",0.024);
           lastCircle = [nx, ny];
         }
-        // Star relationships (pentagram/hexagram) for classical harmony
         function star(cx,cy,r,points,col,wide){
           let arr = [];
           for(let i=0;i<points;i++){
@@ -329,10 +314,8 @@
             }
           }
         }
-        star(w/2,0,Math.min(w,h)/2*0.62,5,"#FC3898",0.023); // pentagramal
-        star(w/2,0,Math.min(w,h)/2*0.54,6,"#45D1F6",0.018); // hexagram
-
-        // Radial lines from center
+        star(w/2,0,Math.min(w,h)/2*0.62,5,"#FC3898",0.023);
+        star(w/2,0,Math.min(w,h)/2*0.54,6,"#45D1F6",0.018);
         for(let r=0;r<8;r++){
           let ang=Math.PI*2*r/8;
           addLine(w/2,0,w/2+Math.cos(ang)*(w/2),0+Math.sin(ang)*(h/2),"#FCA237",0.018);
@@ -359,7 +342,6 @@
       },
       init: function(){
         const data = this.data;
-        // Use THREE.Line2 for wider/thicker lines
         if (THREE.Line2 && THREE.LineGeometry && THREE.LineMaterial) {
           let positions = [
             data.start[0], data.start[1], data.start[2],
@@ -369,7 +351,7 @@
           geometry.setPositions(positions);
           let matOpt = {
             color: new THREE.Color(data.color),
-            linewidth: data.linewidth * 10, // Scale for Three.js
+            linewidth: data.linewidth * 10,
             transparent: true,
             opacity: data.opacity,
             dashed: data.dashSize > 0,
@@ -388,7 +370,6 @@
           }
           this.el.setObject3D('mesh', line);
         } else {
-          // Fallback: LineBasicMaterial, not as wide
           let geometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(...data.start),
             new THREE.Vector3(...data.end)
@@ -403,7 +384,6 @@
         }
       }
     });
-    // Update line resolution on viewport resize (for thick lines)
     window.addEventListener('resize', ()=>{
       document.querySelectorAll('a-entity[line]').forEach(el=>{
         if(el.getObject3D('mesh')&&el.getObject3D('mesh').material&&el.getObject3D('mesh').material.resolution){
