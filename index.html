@@ -120,7 +120,7 @@
       else loadingDiv.style.display = 'none';
     }
 
-    // The main realtime CV loop
+    // The main realtime CV loop (REVISED: use requestAnimationFrame for live fast analysis)
     function mainLoop() {
       ensureCVLoaded();
       if (!(video.videoWidth && video.videoHeight && cvReady)) {
@@ -130,28 +130,25 @@
       resize();
 
       // Setup OpenCV matrices
-      const src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
-      const gray = new cv.Mat();
-      const edges = new cv.Mat();
-      const lines = new cv.Mat();
-      const hierarchy = new cv.Mat();
-      const contours = new cv.MatVector();
-      const circles = new cv.Mat();
-      const corners = new cv.Mat();
+      let vw = canvas.width, vh = canvas.height;
+      let src = new cv.Mat(vh, vw, cv.CV_8UC4);
+      let gray = new cv.Mat();
+      let edges = new cv.Mat();
+      let lines = new cv.Mat();
+      let hierarchy = new cv.Mat();
+      let contours = new cv.MatVector();
+      let circles = new cv.Mat();
+      let corners = new cv.Mat();
 
       function processFrame() {
-        // Draw the video frame on a temp canvas (offscreen)
+        // Draw the current video frame to the canvas
         ctx.clearRect(0,0,canvas.width,canvas.height);
-
-        // Compute aspect-correct size
-        const vw = canvas.width, vh = canvas.height;
         ctx.drawImage(video, 0, 0, vw, vh);
 
-        // Get image data for OpenCV
         let imageData = ctx.getImageData(0,0,vw,vh);
         src.data.set(imageData.data);
 
-        // Convert BGR -> Grayscale
+        // Convert to grayscale
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
         // Edges
@@ -162,7 +159,6 @@
           cv.cvtColor(edges, rgba, cv.COLOR_GRAY2RGBA);
           for (let i=0; i<rgba.data.length; i+=4) {
             if (rgba.data[i]>0) { rgba.data[i]=46; rgba.data[i+1]=255; rgba.data[i+2]=103;}
-            // else leave background as is (transparent)
           }
           ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba.data), vw, vh),0,0);
           rgba.delete();
@@ -189,7 +185,6 @@
 
         // Contours
         if (overlays.contours) {
-          // Use Canny edges for contours
           cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
           ctx.save();
           ctx.globalAlpha = 0.7;
@@ -210,9 +205,8 @@
           ctx.restore();
         }
 
-        // Circles (Hough)
+        // Circles
         if (overlays.circles) {
-          // Blur to help circle detection
           let blur = new cv.Mat();
           cv.medianBlur(gray, blur, 7);
           cv.HoughCircles(blur, circles, cv.HOUGH_GRADIENT, 1, 80, 130, 35, 15, Math.min(vw,vh)/2);
@@ -230,7 +224,7 @@
           blur.delete();
         }
 
-        // Corners (Harris)
+        // Corners
         if (overlays.corners) {
           cv.cornerHarris(gray, corners, 3, 3, 0.04);
           let maxVal = 0;
@@ -252,14 +246,12 @@
         }
       }
 
-      // Loop at best possible CV speed (1-3 fps is reasonable in mobile browsers for OpenCV.js)
-      function animatedFrame() {
-        if (video.readyState >= 2 && cvReady) {
-          processFrame();
-        }
-        setTimeout(animatedFrame, 350); // 3fps: reduce if too laggy on mobile
+      // Use requestAnimationFrame for fastest available updates (live camera analysis)
+      function animationFrameLoop() {
+        if (video.readyState >= 2 && cvReady) processFrame();
+        requestAnimationFrame(animationFrameLoop);
       }
-      animatedFrame();
+      animationFrameLoop();
     }
   </script>
 </body>
