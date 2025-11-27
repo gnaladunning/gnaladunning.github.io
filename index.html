@@ -16,6 +16,7 @@
     }
     #overlayCanvas {
       position:fixed; left:0; top:0; width:100vw; height:100vh; z-index:1; pointer-events:none;
+      /* important: overlay is visible over camera feed */
     }
     .controls {
       position: absolute; right: 1em; top: 1em; z-index: 2; background:rgba(30,30,30,0.80);
@@ -57,8 +58,7 @@
   </div>
   <video id="cameraFeed" autoplay playsinline muted></video>
   <canvas id="overlayCanvas"></canvas>
-
-  <!-- OpenCV.js: Latest CDN version -->
+  <!-- OpenCV.js -->
   <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
   <script>
     const video = document.getElementById('cameraFeed');
@@ -120,7 +120,39 @@
       else loadingDiv.style.display = 'none';
     }
 
-    // The main realtime CV loop (REVISED: use requestAnimationFrame for live fast analysis)
+    // Smoothed polyline using Catmull-Rom spline algorithm (returns array of interpolated [x, y])
+    function getSmoothCurve(pts, tension = 0.5, numSegments = 16) {
+      if (pts.length < 3) return pts;
+      let result = [];
+      for (let i = 0; i < pts.length - 1; i++) {
+        let p0 = pts[i === 0 ? i : i - 1];
+        let p1 = pts[i];
+        let p2 = pts[i + 1];
+        let p3 = pts[i + 2 < pts.length ? i + 2 : pts.length - 1];
+
+        for (let t = 0; t < numSegments; t++) {
+          let s = t / numSegments;
+          let s2 = s * s, s3 = s2 * s;
+
+          // Catmull-Rom formula
+          let x = 0.5 * ((2*p1[0]) +
+            (-p0[0] + p2[0]) * s +
+            (2*p0[0] - 5*p1[0] + 4*p2[0] - p3[0]) * s2 +
+            (-p0[0] + 3*p1[0] - 3*p2[0] + p3[0]) * s3);
+
+          let y = 0.5 * ((2*p1[1]) +
+            (-p0[1] + p2[1]) * s +
+            (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1]) * s2 +
+            (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1]) * s3);
+
+          result.push([x, y]);
+        }
+      }
+      result.push(pts[pts.length-1]);
+      return result;
+    }
+
+    // The main realtime CV loop
     function mainLoop() {
       ensureCVLoaded();
       if (!(video.videoWidth && video.videoHeight && cvReady)) {
@@ -129,7 +161,7 @@
       }
       resize();
 
-      // Setup OpenCV matrices
+      // OpenCV matrices (scope for frame reuse)
       let vw = canvas.width, vh = canvas.height;
       let src = new cv.Mat(vh, vw, cv.CV_8UC4);
       let gray = new cv.Mat();
@@ -141,11 +173,17 @@
       let corners = new cv.Mat();
 
       function processFrame() {
-        // Draw the current video frame to the canvas
+        // 1. Clear overlay canvas (NOT the camera video)
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(video, 0, 0, vw, vh);
 
-        let imageData = ctx.getImageData(0,0,vw,vh);
+        // 2. Draw current video frame to an offscreen canvas for OpenCV. Camera feed is always behind the overlay.
+        // (the video element is not drawn onto the overlay canvas; it remains visible as #cameraFeed behind)
+        let offCanvas = document.createElement('canvas');
+        offCanvas.width = vw;
+        offCanvas.height = vh;
+        let offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(video, 0, 0, vw, vh);
+        let imageData = offCtx.getImageData(0,0,vw,vh);
         src.data.set(imageData.data);
 
         // Convert to grayscale
@@ -154,53 +192,84 @@
         // Edges
         if (overlays.edges) {
           cv.Canny(gray, edges, 60, 140, 3, false);
-          // Visualize edges in green
-          let rgba = new cv.Mat();
-          cv.cvtColor(edges, rgba, cv.COLOR_GRAY2RGBA);
-          for (let i=0; i<rgba.data.length; i+=4) {
-            if (rgba.data[i]>0) { rgba.data[i]=46; rgba.data[i+1]=255; rgba.data[i+2]=103;}
+          // Visualize edges (alpha blend to overlay ONLY, not replace camera frame)
+          let edgeImage = ctx.createImageData(vw, vh);
+          for (let i = 0; i < edges.data.length; i++) {
+            if (edges.data[i] > 0) {
+              edgeImage.data[i * 4 + 0] = 46;
+              edgeImage.data[i * 4 + 1] = 255;
+              edgeImage.data[i * 4 + 2] = 103;
+              edgeImage.data[i * 4 + 3] = 120; // semi-transparent
+            } else {
+              edgeImage.data[i * 4 + 3] = 0;
+            }
           }
-          ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba.data), vw, vh),0,0);
-          rgba.delete();
+          ctx.putImageData(edgeImage, 0, 0);
         }
 
-        // Lines (Hough)
+        // Lines (smoothed overlays)
         if (overlays.lines) {
-          cv.Canny(gray, edges, 60, 140, 3, false);
-          cv.HoughLinesP(edges, lines, 1, Math.PI/180, 72, 60, 10);
-
+          // Use edges as input
+          cv.HoughLinesP(edges, lines, 1, Math.PI/180, 70, 60, 10);
           ctx.save();
-          ctx.globalAlpha = 0.7;
+          ctx.globalAlpha = 0.8;
           ctx.strokeStyle = "#FFD600";
           ctx.lineWidth = 4;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          // For each line segment (either interpolate between segment ends for smoothness, or draw as is)
           for (let i = 0; i < lines.rows; ++i) {
             let l = lines.data32S.subarray(i*4, i*4+4);
-            ctx.beginPath();
-            ctx.moveTo(l[0]*vw/edges.cols, l[1]*vh/edges.rows);
-            ctx.lineTo(l[2]*vw/edges.cols, l[3]*vh/edges.rows);
-            ctx.stroke();
+            // Smooth short lines a bit further to avoid jaggedness:
+            // We'll interpolate with a little rounding: If lines are short, bend them a little.
+            let x1 = l[0]*vw/edges.cols, y1 = l[1]*vh/edges.rows;
+            let x2 = l[2]*vw/edges.cols, y2 = l[3]*vh/edges.rows;
+            if (Math.hypot(x2-x1, y2-y1) > 16) {
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              // Instead of .lineTo, use quadratic control for smoothing
+              let mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+              let dx = y2-y1, dy = x1-x2;
+              let mag = Math.min(8, Math.hypot(dx,dy)*0.16);
+              // "Curve" offset, perpendicular to the line segment
+              ctx.quadraticCurveTo(mx+mag*dx/18, my+mag*dy/18, x2, y2);
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.stroke();
+            }
           }
           ctx.restore();
         }
 
-        // Contours
+        // Contours: smoothed curves
         if (overlays.contours) {
           cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
           ctx.save();
-          ctx.globalAlpha = 0.7;
+          ctx.globalAlpha = 0.8;
           ctx.lineWidth = 2.5;
+          ctx.strokeStyle = "#51FF3D";
           for (let i=0; i < contours.size(); ++i) {
             let c = contours.get(i);
-            ctx.beginPath();
+            let pts = [];
             for (let j=0; j < c.rows; ++j) {
               let pt = c.data32S.subarray(j*2, j*2+2);
               let x = pt[0] * vw / edges.cols;
               let y = pt[1] * vh / edges.rows;
-              if (j==0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+              pts.push([x, y]);
             }
-            ctx.closePath();
-            ctx.strokeStyle = "#51FF3D";
-            ctx.stroke();
+            if (pts.length > 1) {
+              const smooth = getSmoothCurve(pts, 0.5, 14);
+              ctx.beginPath();
+              for(let k=0;k<smooth.length;k++){
+                if(k===0) ctx.moveTo(smooth[k][0], smooth[k][1]);
+                else ctx.lineTo(smooth[k][0], smooth[k][1]);
+              }
+              ctx.closePath();
+              ctx.stroke();
+            }
           }
           ctx.restore();
         }
@@ -216,8 +285,9 @@
           ctx.lineWidth = 4;
           for (let i=0; i<circles.cols; ++i) {
             let x = circles.data32F[i*3], y = circles.data32F[i*3+1], r=circles.data32F[i*3+2];
+            // Draw smooth ellipse rather than raw arc (if radii are elliptical)
             ctx.beginPath();
-            ctx.arc(x*vw/gray.cols, y*vh/gray.rows, r*vw/gray.cols, 0, 2*Math.PI);
+            ctx.ellipse(x*vw/gray.cols, y*vh/gray.rows, r*vw/gray.cols, r*vh/gray.rows, 0, 0, 2*Math.PI);
             ctx.stroke();
           }
           ctx.restore();
