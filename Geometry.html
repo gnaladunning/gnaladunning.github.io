@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Compositional Geometry Analyzer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #222;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      background: #292929;
+      box-shadow: 0 0 20px #111;
+      border-radius: 10px;
+      padding: 32px 16px 32px 16px;
+      position: relative;
+    }
+    h1 {
+      text-align: center;
+      margin-top: 0;
+    }
+    #imageInput {
+      margin: 20px auto;
+      display: block;
+    }
+    .canvas-wrap {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #181818;
+      min-height: 420px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    #imgCanvas, #overlayCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 0;
+      border-radius: 8px;
+      pointer-events: none;
+    }
+    #overlayCanvas {
+      z-index: 2;
+      pointer-events: auto;
+      background: transparent;
+    }
+    .controls {
+      text-align: center;
+      margin: 1rem 0 0 0;
+    }
+    .controls label {
+      margin-right: 1em;
+      font-size: 1rem;
+    }
+    .desc {
+      padding: 1em;
+      max-width: 700px;
+      margin: 0 auto 2em auto;
+      background: #222;
+      border-radius: 6px;
+      font-size: 1.1em;
+      color: #ccc;
+    }
+    @media (max-width:700px) {
+      .container{padding:8px;}
+      .desc{padding:8px;}
+      .canvas-wrap{min-height:160px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Compositional Geometry Analyzer</h1>
+    <div class="desc">
+      Upload an image or painting to reveal underlying compositional geometry: rule-of-thirds, diagonals, curves, and perspective overlays.<br>
+      Use the checkboxes to toggle different overlays on the picture.<br>
+      <strong>For AI and art analysis purposes only.</strong>
+    </div>
+    <input id="imageInput" type="file" accept="image/*"/>
+    <div class="canvas-wrap" style="position:relative; width:100%; min-height:420px;">
+      <canvas id="imgCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+    </div>
+    <div class="controls">
+      <label><input type="checkbox" id="thirdsChk" checked> Rule of Thirds</label>
+      <label><input type="checkbox" id="diagonalsChk" checked> Diagonals ("Baroque" and "Sinister")</label>
+      <label><input type="checkbox" id="goldenChk"> Golden Ratio</label>
+      <label><input type="checkbox" id="perspectiveChk"> Perspective Grid</label>
+      <label><input type="checkbox" id="curvesChk"> Dynamic Curves</label>
+      <button id="clearBtn" style="margin-left:1em;">Clear Image</button>
+    </div>
+  </div>
+  <script>
+    const imgCanvas = document.getElementById('imgCanvas');
+    const imgCtx = imgCanvas.getContext('2d');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const imageInput = document.getElementById('imageInput');
+
+    let img = null;
+    let imgW = 640, imgH = 480; // default
+
+    function resizeCanvases(w,h) {
+      [imgCanvas, overlayCanvas].forEach(c => {
+        c.width = w;
+        c.height = h;
+        c.style.width = w + "px";
+        c.style.height = h + "px";
+      });
+      document.querySelector(".canvas-wrap").style.minHeight = Math.round(h * 0.5) + "px";
+    }
+
+    function drawImageOnCanvas(image) {
+      // Fit image into maximum region.
+      const maxW = Math.min(800, window.innerWidth-48);
+      const maxH = 500;
+      let [imgW, imgH] = [image.width, image.height];
+      const scale = Math.min(maxW / imgW, maxH / imgH, 1.0);
+      imgW = Math.round(imgW * scale);
+      imgH = Math.round(imgH * scale);
+      resizeCanvases(imgW, imgH);
+      imgCtx.clearRect(0,0,imgCanvas.width,imgCanvas.height);
+      imgCtx.drawImage(image, 0,0, imgW,imgH);
+      overlayCtx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+      updateOverlay();
+    }
+
+    imageInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        img = new window.Image();
+        img.onload = function() {
+          drawImageOnCanvas(img);
+        }
+        img.src = evt.target.result;
+      }
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('clearBtn').onclick = function() {
+      imageInput.value = "";
+      img = null;
+      overlayCtx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+      imgCtx.clearRect(0,0,imgCanvas.width,imgCanvas.height);
+      resizeCanvases(400,300);
+    }
+
+    ['thirdsChk', 'diagonalsChk', 'goldenChk', 'perspectiveChk', 'curvesChk'].forEach(id => {
+      document.getElementById(id).onchange = updateOverlay;
+    });
+
+    function updateOverlay() {
+      overlayCtx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+      if (!img) return;
+      if (document.getElementById('thirdsChk').checked)
+        drawThirds();
+      if (document.getElementById('diagonalsChk').checked)
+        drawDiagonals();
+      if (document.getElementById('goldenChk').checked)
+        drawGoldenRatio();
+      if (document.getElementById('perspectiveChk').checked)
+        drawPerspectiveGrid();
+      if (document.getElementById('curvesChk').checked)
+        drawDynamicCurves();
+    }
+
+    // --- Overlay Drawing Functions ---
+
+    function drawThirds() {
+      // Rule of Thirds (2 vertical, 2 horizontal)
+      const w = overlayCanvas.width, h = overlayCanvas.height;
+      overlayCtx.save();
+      overlayCtx.strokeStyle = "rgba(255,255,0,0.7)";
+      overlayCtx.lineWidth = 2;
+      for(let i=1;i<=2;i++) {
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(i*w/3,0); overlayCtx.lineTo(i*w/3,h);
+        overlayCtx.stroke();
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(0,i*h/3); overlayCtx.lineTo(w,i*h/3);
+        overlayCtx.stroke();
+      }
+      overlayCtx.restore();
+    }
+
+    function drawDiagonals() {
+      // Diagonal lines ("Baroque" diagonal: TL->BR; "Sinister" diagonal: TR->BL)
+      const w = overlayCanvas.width, h = overlayCanvas.height;
+      overlayCtx.save();
+      overlayCtx.strokeStyle = "rgba(0,200,255,0.7)";
+      overlayCtx.lineWidth = 2;
+      // main diagonals
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(0,0); overlayCtx.lineTo(w,h); // Baroque
+      overlayCtx.stroke();
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(w,0); overlayCtx.lineTo(0,h); // Sinister
+      overlayCtx.stroke();
+      // Diagonals from thirds intersections
+      overlayCtx.setLineDash([5,6]);
+      for(let i=1;i<=2;i++) {
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(i*w/3,0); overlayCtx.lineTo(w,(i*h/3));
+        overlayCtx.stroke();
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(0, i*h/3); overlayCtx.lineTo(i*w/3,h);
+        overlayCtx.stroke();
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(w-i*w/3,0); overlayCtx.lineTo(0,(i*h/3));
+        overlayCtx.stroke();
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(w, i*h/3); overlayCtx.lineTo(w-i*w/3,h);
+        overlayCtx.stroke();
+      }
+      overlayCtx.setLineDash([]);
+      overlayCtx.restore();
+    }
+
+    function drawGoldenRatio() {
+      // Draw vertical/horizontal golden sections ("phi grid")
+      const w = overlayCanvas.width, h = overlayCanvas.height;
+      const phi = 0.618;
+      overlayCtx.save();
+      overlayCtx.strokeStyle = "rgba(148, 255, 110, 0.80)";
+      overlayCtx.lineWidth = 2;
+      // Vertical
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(w*phi,0); overlayCtx.lineTo(w*phi,h);
+      overlayCtx.stroke();
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(w*(1-phi),0); overlayCtx.lineTo(w*(1-phi),h);
+      overlayCtx.stroke();
+      // Horizontal
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(0,h*phi); overlayCtx.lineTo(w,h*phi);
+      overlayCtx.stroke();
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(0,h*(1-phi)); overlayCtx.lineTo(w,h*(1-phi));
+      overlayCtx.stroke();
+      overlayCtx.restore();
+      // Draw golden spirals for flavor
+      drawGoldenSpirals(w, h);
+    }
+
+    function drawGoldenSpirals(w, h) {
+      overlayCtx.save();
+      overlayCtx.strokeStyle = "rgba(148,255,110,0.50)";
+      overlayCtx.lineWidth = 2;
+      function drawSpiral(x, y, dx, dy, dir) {
+        let a = 0, maxA = 1.5*Math.PI, steps = 80;
+        let scale = Math.min(w,h)/2.2*0.97;
+        overlayCtx.beginPath();
+        for(let s=0;s<steps;s++) {
+          let r = scale * Math.pow(0.618, a/(2*Math.PI));
+          let px = x + dir*r*Math.cos(a)*dx - dir*r*Math.sin(a)*dy;
+          let py = y + dir*r*Math.sin(a)*dx + dir*r*Math.cos(a)*dy;
+          if(s===0) overlayCtx.moveTo(px, py); else overlayCtx.lineTo(px,py);
+          a += maxA/steps;
+        }
+        overlayCtx.stroke();
+      }
+      drawSpiral(0,0,1,0,1); // top-left
+      drawSpiral(w,0,-1,0,1); // top-right
+      drawSpiral(w,h,0,-1,1); // bottom-right
+      drawSpiral(0,h,0,1,1); // bottom-left
+      overlayCtx.restore();
+    }
+
+    function drawPerspectiveGrid() {
+      // Simple one-point perspective: vanishing point at image center
+      const w = overlayCanvas.width, h = overlayCanvas.height;
+      const cx = w/2, cy = h/2;
+      overlayCtx.save();
+      overlayCtx.strokeStyle = "rgba(255,120,60,0.7)";
+      overlayCtx.lineWidth = 1.2;
+      let lines = 14;
+      // radiating lines
+      for (let i=0;i<lines;i++) {
+        let angle = Math.PI*2 * i/lines;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(cx,cy);
+        overlayCtx.lineTo(cx + Math.cos(angle)*Math.max(w,h), cy + Math.sin(angle)*Math.max(w,h));
+        overlayCtx.stroke();
+      }
+      // horizontal "orthogonals"
+      overlayCtx.setLineDash([5,7]);
+      for(let i=1;i<10;i++) {
+        let y = h * i/10;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(0,y); overlayCtx.lineTo(w,y);
+        overlayCtx.stroke();
+      }
+      overlayCtx.setLineDash([]);
+      overlayCtx.restore();
+    }
+
+    function drawDynamicCurves() {
+      // Draw some dynamic symmetry curve overlays (C and S curves, a la Bouguereau or Rubens)
+      const w = overlayCanvas.width, h = overlayCanvas.height;
+      overlayCtx.save();
+      overlayCtx.strokeStyle = "rgba(255,220,90,0.76)";
+      overlayCtx.lineWidth = 2.5;
+      overlayCtx.setLineDash([8,8]);
+      // "C" curve
+      overlayCtx.beginPath();
+      for(let t=0;t<=1;t+=0.01) {
+        let x = w*0.1 + (w*0.8)*(Math.pow(t, 0.85));
+        let y = h*0.1 + (h*0.8)*Math.sin(t*Math.PI/2);
+        if(t===0) overlayCtx.moveTo(x,y); else overlayCtx.lineTo(x,y);
+      }
+      overlayCtx.stroke();
+      // Mirrored "C" (reverse)
+      overlayCtx.beginPath();
+      for(let t=0;t<=1;t+=0.01) {
+        let x = w*0.9 - (w*0.8)*Math.pow(t,0.85);
+        let y = h*0.9 - (h*0.8)*Math.sin(t*Math.PI/2);
+        if(t===0) overlayCtx.moveTo(x,y); else overlayCtx.lineTo(x,y);
+      }
+      overlayCtx.stroke();
+      // Slight S curve
+      overlayCtx.strokeStyle = "rgba(180,255,200,0.45)";
+      overlayCtx.setLineDash([4,18]);
+      overlayCtx.beginPath();
+      for(let t=0;t<=1;t+=0.01) {
+        let x = w*(0.15 + 0.7*t + 0.09*Math.sin(t*2.5*Math.PI));
+        let y = h*(0.1 + 0.8*(3*t*t-2*t*t*t));
+        if(t===0) overlayCtx.moveTo(x,y); else overlayCtx.lineTo(x,y);
+      }
+      overlayCtx.stroke();
+      overlayCtx.setLineDash([]);
+      overlayCtx.restore();
+    }
+
+    // Initial setup
+    resizeCanvases(400, 300);
+  </script>
+</body>
+</html>
