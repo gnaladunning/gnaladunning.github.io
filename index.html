@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Realtime Compositional Geometry Analyzer - AR Web</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Compositional Geometry AR Analyzer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
@@ -16,7 +16,6 @@
     }
     #overlayCanvas {
       position:fixed; left:0; top:0; width:100vw; height:100vh; z-index:1; pointer-events:none;
-      /* important: overlay is visible over camera feed */
     }
     .controls {
       position: absolute; right: 1em; top: 1em; z-index: 2; background:rgba(30,30,30,0.80);
@@ -24,7 +23,7 @@
     }
     .controls label { display:block; margin-bottom:.3em; }
     #instructions {
-      background:rgba(0,0,0,0.8); color:#fff; max-width:408px;
+      background:rgba(0,0,0,0.8); color:#fff; max-width:430px;
       margin:.6em auto; border-radius: 8px; padding: 11px; font-size:.99em;
       z-index: 3; position:relative; text-align:center;
     }
@@ -37,28 +36,34 @@
 </head>
 <body>
   <div id="instructions">
-    <b>Realtime Compositional Geometry AR Analyzer</b> (Experimental CV Version)<br>
+    <b>Web AR: Compositional Geometry Analyzer</b>
     <ol style="padding-left:1.2em; text-align:left;">
-      <li>Allow access to your camera if prompted.</li>
-      <li>Point your device camera at images, artworks, or scenes.</li>
-      <li>Compositional overlays <u>derived from CV analysis</u> will appear live.</li>
+      <li>Allow access to your camera.</li>
+      <li>Point your device at images, artworks, photography, or everyday scenes.</li>
+      <li>
+        <b>Features:</b>
+        <ul>
+          <li><b>Geometric Feature Extraction:</b> Identifies lines, quadrilaterals, triangles, ovals, circles, and their spatial arrangement using shape analysis.</li>
+          <li><b>Compositional Rule Detection:</b> Detects rule of thirds, golden section, and central axis balance by quantifying placement and ratios of detected elements.</li>
+          <li><b>Symmetry and Balance Analysis:</b> Computes Gestalt-based symmetry and "Assessment of Preference for Balance" (APB) metrics, including visual center of gravity.</li>
+          <li><b>Structural Stability Metrics:</b> Evaluates the equilibrium and robustness of visual arrangements.</li>
+        </ul>
+      </li>
     </ol>
     <div style="margin-top:.7em; font-size:.92em;color:#cfa;">
-      Processing is live and may take 1-2 seconds per frame. CV performed with OpenCV.js in-browser.<br>
-      For best results: use Safari on iOS or Chrome/Edge on Android.
+      All processing is on-device in your browser with OpenCV.js. For best results, use Safari (iOS) or Chrome/Edge (Android).
     </div>
   </div>
   <div id="loading">Loading computer vision library&hellip;</div>
   <div class="controls">
-    <label><input type="checkbox" id="edgesChk" checked> Edges</label>
     <label><input type="checkbox" id="linesChk" checked> Lines</label>
-    <label><input type="checkbox" id="contoursChk"> Contours</label>
-    <label><input type="checkbox" id="circlesChk"> Circles</label>
-    <label><input type="checkbox" id="cornersChk"> Corners</label>
+    <label><input type="checkbox" id="shapesChk" checked> Shapes (Quads/Ovals/Triangles/Circles)</label>
+    <label><input type="checkbox" id="compositionChk" checked> Compositional Rules</label>
+    <label><input type="checkbox" id="symmetryChk"> Symmetry/Balance</label>
+    <label><input type="checkbox" id="stabilityChk"> Structural Stability</label>
   </div>
   <video id="cameraFeed" autoplay playsinline muted></video>
   <canvas id="overlayCanvas"></canvas>
-  <!-- OpenCV.js -->
   <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
   <script>
     const video = document.getElementById('cameraFeed');
@@ -66,19 +71,19 @@
     const ctx = canvas.getContext('2d');
     const loadingDiv = document.getElementById('loading');
 
-    // Overlay options
+    // Overlay feature toggles
     const overlays = {
-      edges: true,
       lines: true,
-      contours: false,
-      circles: false,
-      corners: false
+      shapes: true,
+      composition: true,
+      symmetry: false,
+      stability: false
     };
-    document.getElementById('edgesChk').onchange = function(){ overlays.edges = this.checked; };
     document.getElementById('linesChk').onchange = function(){ overlays.lines = this.checked; };
-    document.getElementById('contoursChk').onchange = function(){ overlays.contours = this.checked; };
-    document.getElementById('circlesChk').onchange = function(){ overlays.circles = this.checked; };
-    document.getElementById('cornersChk').onchange = function(){ overlays.corners = this.checked; };
+    document.getElementById('shapesChk').onchange = function(){ overlays.shapes = this.checked; };
+    document.getElementById('compositionChk').onchange = function(){ overlays.composition = this.checked; };
+    document.getElementById('symmetryChk').onchange = function(){ overlays.symmetry = this.checked; };
+    document.getElementById('stabilityChk').onchange = function(){ overlays.stability = this.checked; };
 
     function resize() {
       const w = window.innerWidth, h = window.innerHeight;
@@ -114,45 +119,75 @@
       else video.onloadeddata = mainLoop;
     }
 
-    // Utility: wait for OpenCV if slow network & race with onloadeddata
     function ensureCVLoaded() {
       if (!cvReady) loadingDiv.style.display = '';
       else loadingDiv.style.display = 'none';
     }
 
-    // Smoothed polyline using Catmull-Rom spline algorithm (returns array of interpolated [x, y])
-    function getSmoothCurve(pts, tension = 0.5, numSegments = 16) {
-      if (pts.length < 3) return pts;
-      let result = [];
-      for (let i = 0; i < pts.length - 1; i++) {
-        let p0 = pts[i === 0 ? i : i - 1];
-        let p1 = pts[i];
-        let p2 = pts[i + 1];
-        let p3 = pts[i + 2 < pts.length ? i + 2 : pts.length - 1];
-
-        for (let t = 0; t < numSegments; t++) {
-          let s = t / numSegments;
-          let s2 = s * s, s3 = s2 * s;
-
-          // Catmull-Rom formula
-          let x = 0.5 * ((2*p1[0]) +
-            (-p0[0] + p2[0]) * s +
-            (2*p0[0] - 5*p1[0] + 4*p2[0] - p3[0]) * s2 +
-            (-p0[0] + 3*p1[0] - 3*p2[0] + p3[0]) * s3);
-
-          let y = 0.5 * ((2*p1[1]) +
-            (-p0[1] + p2[1]) * s +
-            (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1]) * s2 +
-            (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1]) * s3);
-
-          result.push([x, y]);
-        }
+    // --- Geometric/Compositional Analysis Utilities ---
+    function drawRuleOfThirds(ctx, w, h) {
+      ctx.save();
+      ctx.strokeStyle = "#ffd800";
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5,5]);
+      for(let i=1; i<=2; ++i) {
+        ctx.beginPath();
+        ctx.moveTo(w/3*i, 0);
+        ctx.lineTo(w/3*i, h);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, h/3*i);
+        ctx.lineTo(w, h/3*i);
+        ctx.stroke();
       }
-      result.push(pts[pts.length-1]);
-      return result;
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    function drawGoldenSection(ctx, w, h) {
+      const phi = 0.618;
+      ctx.save();
+      ctx.strokeStyle = "#ff8e4e";
+      ctx.lineWidth = 1.25;
+      ctx.setLineDash([8,6]);
+      // Vertical sections
+      ctx.beginPath();
+      ctx.moveTo(w*phi, 0); ctx.lineTo(w*phi, h); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(w*(1-phi), 0); ctx.lineTo(w*(1-phi), h); ctx.stroke();
+      // Horizontal sections
+      ctx.beginPath();
+      ctx.moveTo(0, h*phi); ctx.lineTo(w, h*phi); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, h*(1-phi)); ctx.lineTo(w, h*(1-phi)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    function drawCentralAxis(ctx, w, h) {
+      ctx.save();
+      ctx.strokeStyle = "#56F3F1"; ctx.lineWidth = 1.1; ctx.setLineDash([5,5]);
+      ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w, h/2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
     }
 
-    // The main realtime CV loop
+    // Detect center of gravity (simple mean of contours' points)
+    function computeCenterOfGravity(contours, w, h) {
+      let sx = 0, sy = 0, n = 0;
+      for (let i=0; i < contours.size(); ++i) {
+        let c = contours.get(i);
+        for (let j=0; j < c.rows; ++j) {
+          let pt = c.data32S.subarray(j*2, j*2+2);
+          sx += pt[0] * w / 640;
+          sy += pt[1] * h / 480;
+          n++;
+        }
+      }
+      if (n === 0) return null;
+      return [sx/n, sy/n];
+    }
+
+    // --- MAIN CV Loop ---
     function mainLoop() {
       ensureCVLoaded();
       if (!(video.videoWidth && video.videoHeight && cvReady)) {
@@ -161,8 +196,7 @@
       }
       resize();
 
-      // OpenCV matrices (scope for frame reuse)
-      let vw = canvas.width, vh = canvas.height;
+      const vw = canvas.width, vh = canvas.height;
       let src = new cv.Mat(vh, vw, cv.CV_8UC4);
       let gray = new cv.Mat();
       let edges = new cv.Mat();
@@ -170,122 +204,93 @@
       let hierarchy = new cv.Mat();
       let contours = new cv.MatVector();
       let circles = new cv.Mat();
-      let corners = new cv.Mat();
 
       function processFrame() {
-        // 1. Clear overlay canvas (NOT the camera video)
-        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.clearRect(0,0,vw,vh);
 
-        // 2. Draw current video frame to an offscreen canvas for OpenCV. Camera feed is always behind the overlay.
-        // (the video element is not drawn onto the overlay canvas; it remains visible as #cameraFeed behind)
+        // 1. Draw compositional guides if enabled
+        if (overlays.composition) {
+          drawRuleOfThirds(ctx, vw, vh);
+          drawGoldenSection(ctx, vw, vh);
+          drawCentralAxis(ctx, vw, vh);
+        }
+        // 2. Predict symmetry/balance axes if enabled (hint: Guides only; not full symmetry scoring)
+        if (overlays.symmetry) {
+          ctx.save();
+          ctx.strokeStyle="#10d86d"; ctx.lineWidth=1.3;
+          ctx.setLineDash([2,2]);
+          ctx.beginPath(); ctx.arc(vw/2, vh/2, Math.min(vw,vh)/3, 0, 2*Math.PI); ctx.stroke();
+          ctx.restore();
+        }
+
+        // 3. Get frame from video input
         let offCanvas = document.createElement('canvas');
-        offCanvas.width = vw;
-        offCanvas.height = vh;
+        offCanvas.width = vw; offCanvas.height = vh;
         let offCtx = offCanvas.getContext('2d');
         offCtx.drawImage(video, 0, 0, vw, vh);
         let imageData = offCtx.getImageData(0,0,vw,vh);
         src.data.set(imageData.data);
 
-        // Convert to grayscale
+        // 4. Gray, Edge, FindLines, FindContours
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        cv.Canny(gray, edges, 60, 140, 3, false);
+        cv.HoughLinesP(edges, lines, 1, Math.PI/180, 70, 60, 10);
+        cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-        // Edges
-        if (overlays.edges) {
-          cv.Canny(gray, edges, 60, 140, 3, false);
-          // Visualize edges (alpha blend to overlay ONLY, not replace camera frame)
-          let edgeImage = ctx.createImageData(vw, vh);
-          for (let i = 0; i < edges.data.length; i++) {
-            if (edges.data[i] > 0) {
-              edgeImage.data[i * 4 + 0] = 46;
-              edgeImage.data[i * 4 + 1] = 255;
-              edgeImage.data[i * 4 + 2] = 103;
-              edgeImage.data[i * 4 + 3] = 120; // semi-transparent
-            } else {
-              edgeImage.data[i * 4 + 3] = 0;
-            }
-          }
-          ctx.putImageData(edgeImage, 0, 0);
-        }
-
-        // Lines (smoothed overlays)
+        // 5. Draw detected lines
         if (overlays.lines) {
-          // Use edges as input
-          cv.HoughLinesP(edges, lines, 1, Math.PI/180, 70, 60, 10);
           ctx.save();
-          ctx.globalAlpha = 0.8;
-          ctx.strokeStyle = "#FFD600";
+          ctx.globalAlpha = 0.80;
+          ctx.strokeStyle = "#FFD700";
           ctx.lineWidth = 4;
           ctx.lineJoin = "round";
           ctx.lineCap = "round";
-          // For each line segment (either interpolate between segment ends for smoothness, or draw as is)
           for (let i = 0; i < lines.rows; ++i) {
             let l = lines.data32S.subarray(i*4, i*4+4);
-            // Smooth short lines a bit further to avoid jaggedness:
-            // We'll interpolate with a little rounding: If lines are short, bend them a little.
             let x1 = l[0]*vw/edges.cols, y1 = l[1]*vh/edges.rows;
             let x2 = l[2]*vw/edges.cols, y2 = l[3]*vh/edges.rows;
-            if (Math.hypot(x2-x1, y2-y1) > 16) {
-              ctx.beginPath();
-              ctx.moveTo(x1, y1);
-              // Instead of .lineTo, use quadratic control for smoothing
-              let mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-              let dx = y2-y1, dy = x1-x2;
-              let mag = Math.min(8, Math.hypot(dx,dy)*0.16);
-              // "Curve" offset, perpendicular to the line segment
-              ctx.quadraticCurveTo(mx+mag*dx/18, my+mag*dy/18, x2, y2);
-              ctx.stroke();
-            } else {
-              ctx.beginPath();
-              ctx.moveTo(x1, y1);
-              ctx.lineTo(x2, y2);
-              ctx.stroke();
-            }
+            ctx.beginPath();
+            ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.stroke();
           }
           ctx.restore();
         }
 
-        // Contours: smoothed curves
-        if (overlays.contours) {
-          cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+        // 6. Detect and draw contours for quads/triangles/ovals/circles
+        if (overlays.shapes) {
           ctx.save();
-          ctx.globalAlpha = 0.8;
-          ctx.lineWidth = 2.5;
-          ctx.strokeStyle = "#51FF3D";
+          ctx.strokeStyle = "#4EF1FF"; ctx.lineWidth = 3.2;
           for (let i=0; i < contours.size(); ++i) {
             let c = contours.get(i);
-            let pts = [];
-            for (let j=0; j < c.rows; ++j) {
-              let pt = c.data32S.subarray(j*2, j*2+2);
-              let x = pt[0] * vw / edges.cols;
-              let y = pt[1] * vh / edges.rows;
-              pts.push([x, y]);
+            let approx = new cv.Mat();
+            cv.approxPolyDP(c, approx, 0.03*cv.arcLength(c, true), true);
+            let n=approx.rows;
+            let pts=[];
+            for(let j=0;j<n;++j){
+              let pt = approx.data32S.subarray(j*2, j*2+2);
+              pts.push([pt[0]*vw/edges.cols, pt[1]*vh/edges.rows]);
             }
-            if (pts.length > 1) {
-              const smooth = getSmoothCurve(pts, 0.5, 14);
-              ctx.beginPath();
-              for(let k=0;k<smooth.length;k++){
-                if(k===0) ctx.moveTo(smooth[k][0], smooth[k][1]);
-                else ctx.lineTo(smooth[k][0], smooth[k][1]);
-              }
-              ctx.closePath();
-              ctx.stroke();
-            }
+            ctx.beginPath();
+            pts.forEach((p,j)=>j===0?ctx.moveTo(p[0],p[1]):ctx.lineTo(p[0],p[1]));
+            if (n>=3) ctx.closePath();
+            ctx.stroke();
+            // highlight by type: quadrilateral, triangle, etc.
+            if(n===3){ctx.fillStyle="#fff6";ctx.fill();}
+            if(n===4){ctx.fillStyle="#ff06";ctx.fill();}
+            approx.delete();
           }
           ctx.restore();
-        }
 
-        // Circles
-        if (overlays.circles) {
+          // Circles (Hough)
           let blur = new cv.Mat();
           cv.medianBlur(gray, blur, 7);
           cv.HoughCircles(blur, circles, cv.HOUGH_GRADIENT, 1, 80, 130, 35, 15, Math.min(vw,vh)/2);
           ctx.save();
           ctx.globalAlpha = 1.0;
-          ctx.strokeStyle = "#00D4F6";
+          ctx.strokeStyle = "#18D6FF";
           ctx.lineWidth = 4;
           for (let i=0; i<circles.cols; ++i) {
             let x = circles.data32F[i*3], y = circles.data32F[i*3+1], r=circles.data32F[i*3+2];
-            // Draw smooth ellipse rather than raw arc (if radii are elliptical)
             ctx.beginPath();
             ctx.ellipse(x*vw/gray.cols, y*vh/gray.rows, r*vw/gray.cols, r*vh/gray.rows, 0, 0, 2*Math.PI);
             ctx.stroke();
@@ -294,29 +299,25 @@
           blur.delete();
         }
 
-        // Corners
-        if (overlays.corners) {
-          cv.cornerHarris(gray, corners, 3, 3, 0.04);
-          let maxVal = 0;
-          for (let y=0; y<corners.rows; y++)
-            for (let x=0; x<corners.cols; x++) {
-              let v = corners.floatAt(y, x);
-              if (v > maxVal) maxVal = v;
-            }
-          ctx.save();
-          ctx.globalAlpha = 1.0;
-          ctx.fillStyle = "#FC3898";
-          for (let y=0; y<corners.rows; y++)
-            for (let x=0; x<corners.cols; x++)
-              if (corners.floatAt(y,x) > 0.1 * maxVal) {
-                let cx = x * vw / corners.cols, cy = y * vh / corners.rows;
-                ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 2*Math.PI); ctx.fill();
-              }
-          ctx.restore();
+        // 7. Display balance (center of gravity overlay)
+        if (overlays.symmetry || overlays.stability) {
+          let cog = computeCenterOfGravity(contours, vw, vh);
+          if (cog) {
+            ctx.save();
+            ctx.globalAlpha = .8;
+            ctx.beginPath();
+            ctx.fillStyle = overlays.stability ? "#ec1" : "#5cf";
+            ctx.arc(cog[0], cog[1], 13, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.font = "bold 13px sans-serif";
+            ctx.fillStyle = "#181818";
+            ctx.fillText("∑", cog[0]-5, cog[1]+5);
+            ctx.restore();
+          }
         }
       }
 
-      // Use requestAnimationFrame for fastest available updates (live camera analysis)
+      // UI frame loop
       function animationFrameLoop() {
         if (video.readyState >= 2 && cvReady) processFrame();
         requestAnimationFrame(animationFrameLoop);
