@@ -1,0 +1,1 @@
+{\n  "name": "gnaladunning-proxy",\n  "version": "1.0.0",\n  "description": "Local development proxy for CORS and SSE for gnaladunning/github.io",\n  "type": "module",\n  "main": "server.js",\n  "scripts": {\n    "start": "node server.js"\n  },\n  "engines": {\n    "node": ">=18.0.0"\n  },\n  "dependencies": {\n    "express": "^4.18.2"\n  }\n}
