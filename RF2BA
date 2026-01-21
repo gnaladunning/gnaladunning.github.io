@@ -1,1 +1,326 @@
 
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Camera + Web3D Data Overlay</title>
+  <style>
+    html,body { height:100%; margin:0; background:#000; font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; color:#eee; }
+    #container { position:relative; width:100%; height:100vh; overflow:hidden; }
+    video#cam {
+      position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); /* mirror for user camera */
+    }
+    canvas#three {
+      position:absolute; inset:0; width:100%; height:100%; pointer-events:none;
+      /* keep transparent background so video shows through */
+      background:transparent;
+    }
+    #ui {
+      position:absolute; left:12px; top:12px; z-index:10; background:rgba(0,0,0,0.45); padding:10px; border-radius:8px;
+      backdrop-filter: blur(6px);
+    }
+    #ui input[type="text"] { width:420px; max-width:40vw; }
+    #status { margin-top:6px; font-size:0.9rem; color:#9cf; }
+    button { margin-left:6px; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <video id="cam" autoplay playsinline muted></video>
+    <canvas id="three"></canvas>
+
+    <div id="ui">
+      <div>
+        Data source URL: <input id="source" type="text" placeholder="Enter JSON/line endpoint or proxy SSE URL" value="http://localhost:3000/sse?url=https%3A%2F%2Fdataview.raspberryshake.org%2F%23%2FAM%2FRF2BA%2F00%2FHDF" />
+        <button id="connect">Connect</button>
+        <button id="disconnect" disabled>Disconnect</button>
+      </div>
+      <div style="margin-top:8px">
+        Poll interval (ms, for non-SSE): <input id="poll" type="number" value="200" style="width:90px" />
+        Max samples in view: <input id="maxSamples" type="number" value="256" style="width:90px" />
+      </div>
+      <div id="status">Status: idle</div>
+      <div style="margin-top:8px; font-size:0.85rem; color:#bbb">
+        Notes: Use HTTPS or localhost for camera access. If the remote data server blocks CORS, run the included proxy.
+      </div>
+    </div>
+  </div>
+
+  <!-- three.js from CDN -->
+  <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+
+  <script>
+  (function(){
+    const video = document.getElementById('cam');
+    const canvas = document.getElementById('three');
+    const connectBtn = document.getElementById('connect');
+    const disconnectBtn = document.getElementById('disconnect');
+    const statusEl = document.getElementById('status');
+    const sourceInput = document.getElementById('source');
+    const pollInput = document.getElementById('poll');
+    const maxSamplesInput = document.getElementById('maxSamples');
+
+    // Camera start
+    async function startCamera() {
+      try {
+        const constraints = { video: { facingMode: 'environment', width: {ideal:1280}, height: {ideal:720} }, audio: false };
+        const s = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = s;
+        await video.play();
+      } catch (err) {
+        console.error('Camera error', err);
+        status('camera error: ' + err.message);
+      }
+    }
+
+    startCamera();
+
+    // THREE scene setup
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 2, 0.1, 1000);
+    camera.position.set(0, 30, 80);
+    camera.lookAt(0,0,0);
+
+    // Lighting
+    const light = new THREE.DirectionalLight(0xffffff, 1.0);
+    light.position.set(0, 50, 50);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x404040, 0.8));
+
+    // Waveform geometry (line)
+    const maxSamplesDefault = parseInt(maxSamplesInput.value) || 256;
+    let maxSamples = maxSamplesDefault;
+    let samples = new Float32Array(maxSamples).fill(0);
+
+    function makeWaveGeometry(len) {
+      const g = new THREE.BufferGeometry();
+      const positions = new Float32Array(len * 3);
+      g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      return g;
+    }
+
+    let waveGeom = makeWaveGeometry(maxSamples);
+    const waveMaterial = new THREE.LineBasicMaterial({ color: 0x00ffcc, linewidth: 2 });
+    const waveLine = new THREE.Line(waveGeom, waveMaterial);
+    waveLine.position.set(- (maxSamples/2) * 0.4, 0, 0);
+    scene.add(waveLine);
+
+    // Bars for amplitude visual
+    const barsGroup = new THREE.Group();
+    scene.add(barsGroup);
+
+    function rebuildBars() {
+      barsGroup.clear();
+      for (let i=0;i<maxSamples;i++) {
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(0.35, 1, 0.8),
+          new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(i/maxSamples, 0.8, 0.5), metalness:0.2, roughness:0.7 })
+        );
+        m.position.x = (i - maxSamples/2) * 0.4;
+        m.position.y = -1;
+        barsGroup.add(m);
+      }
+    }
+
+    rebuildBars();
+
+    function updateWaveGeometry() {
+      const pos = waveGeom.attributes.position.array;
+      for (let i=0;i<maxSamples;i++) {
+        const x = i * 0.4;
+        const y = samples[i] * 12; // scale
+        pos[i*3] = x;
+        pos[i*3+1] = y;
+        pos[i*3+2] = Math.sin(i/10) * 0.8; // small Z wobble
+      }
+      waveGeom.attributes.position.needsUpdate = true;
+
+      // update bars
+      for (let i=0;i<Math.min(barsGroup.children.length, maxSamples); i++) {
+        const v = Math.abs(samples[i]);
+        barsGroup.children[i].scale.y = Math.max(0.05, v*8);
+        barsGroup.children[i].position.y = barsGroup.children[i].scale.y/2 - 1;
+      }
+    }
+
+    // Resize handling
+    function onResize() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w/h;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    // Animation
+    function animate() {
+      requestAnimationFrame(animate);
+      // slowly rotate for a 3D feel
+      scene.rotation.y += 0.002;
+      updateWaveGeometry();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Data ingestion: supports SSE (EventSource) or periodic fetch of JSON/lines
+    let es = null;
+    let poller = null;
+
+    function status(msg) {
+      statusEl.textContent = 'Status: ' + msg;
+    }
+
+    function pushSamples(newSamples) {
+      // newSamples: array of numbers
+      // shift existing data and append newSamples at end
+      const n = newSamples.length;
+      if (n >= samples.length) {
+        // keep only last maxSamples
+        samples = Float32Array.from(newSamples.slice(-samples.length));
+      } else {
+        samples.copyWithin(0, n);
+        for (let i=0;i<n;i++) samples[samples.length - n + i] = newSamples[i];
+      }
+      // if geometry size changed (maxSamples changed), rebuild
+      if (waveGeom.attributes.position.count !== maxSamples) {
+        waveGeom = makeWaveGeometry(maxSamples);
+        waveLine.geometry = waveGeom;
+        rebuildBars();
+      }
+    }
+
+    function parseTextToNumbers(text) {
+      // Basic parser: extract floats from text
+      const nums = [];
+      const re = /[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        nums.push(parseFloat(m[0]));
+      }
+      return nums;
+    }
+
+    async function startPolling(url, intervalMs=200) {
+      stopAllStreams();
+      status('polling ' + url);
+      poller = setInterval(async () => {
+        try {
+          const res = await fetch(url, {cache:'no-store'});
+          if (!res.ok) { console.warn('Polling fetch not ok', res.status); status('poll error ' + res.status); return; }
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const json = await res.json();
+            // Accept array or object with "samples"
+            if (Array.isArray(json)) {
+              pushSamples(json.map(Number));
+            } else if (json.samples && Array.isArray(json.samples)) {
+              pushSamples(json.samples.map(Number));
+            } else {
+              // attempt to pull numbers from JSON by stringifying
+              pushSamples(parseTextToNumbers(JSON.stringify(json)));
+            }
+          } else {
+            const txt = await res.text();
+            pushSamples(parseTextToNumbers(txt));
+          }
+        } catch (err) {
+          console.error('poll error', err);
+          status('poll error ' + err.message);
+        }
+      }, intervalMs);
+    }
+
+    function startSSE(sseUrl) {
+      stopAllStreams();
+      try {
+        es = new EventSource(sseUrl, { withCredentials: false });
+      } catch (err) {
+        status('SSE init error: ' + err.message);
+        console.error(err);
+        return;
+      }
+      status('SSE connecting...');
+      es.onopen = () => status('SSE connected');
+      es.onerror = (e) => {
+        console.warn('SSE error', e);
+        status('SSE error (see console)');
+      };
+      // The SSE should send messages where event.data is a JSON array or newline-separated numbers
+      es.onmessage = (ev) => {
+        try {
+          const s = ev.data.trim();
+          if (!s) return;
+          if (s.startsWith('[')) {
+            const arr = JSON.parse(s);
+            pushSamples(arr.map(Number));
+          } else if (s.includes('\\n')) {
+            pushSamples(parseTextToNumbers(s));
+          } else {
+            // single number append
+            const n = parseFloat(s);
+            if (!Number.isNaN(n)) pushSamples([n]);
+          }
+        } catch (err) {
+          console.error('SSE parse error', err);
+        }
+      };
+    }
+
+    function stopAllStreams() {
+      if (es) { es.close(); es = null; }
+      if (poller) { clearInterval(poller); poller = null; }
+      disconnectBtn.disabled = true;
+      connectBtn.disabled = false;
+    }
+
+    connectBtn.addEventListener('click', () => {
+      const src = sourceInput.value.trim();
+      maxSamples = Math.max(16, parseInt(maxSamplesInput.value) || maxSamplesDefault);
+      // rebuild geometry to new max
+      waveGeom = makeWaveGeometry(maxSamples);
+      waveLine.geometry = waveGeom;
+      rebuildBars();
+      if (!src) { status('no source'); return; }
+      // heuristics: if URL contains /sse or starts with 'http' and the scheme supports EventSource, try SSE first
+      if (src.startsWith('http') && (src.toLowerCase().includes('/sse') || src.toLowerCase().includes('eventsource'))) {
+        startSSE(src);
+      } else if (src.startsWith('http') && src.indexOf('://') !== -1 && src.indexOf('localhost') !== -1) {
+        // allow SSE for localhost if user set it
+        if (src.startsWith('http') && src.includes('/sse')) startSSE(src);
+        else startPolling(src, Math.max(50, parseInt(pollInput.value) || 200));
+      } else {
+        // attempt to parse as SSE if it begins with 'sse://' or 'eventsource://'
+        if (src.startsWith('sse://')) {
+          startSSE(src.replace(/^sse:\/\//, 'http://'));
+        } else {
+          // fallback: treat as polling JSON/text endpoint
+          startPolling(src, Math.max(50, parseInt(pollInput.value) || 200));
+        }
+      }
+      disconnectBtn.disabled = false;
+      connectBtn.disabled = true;
+    });
+
+    disconnectBtn.addEventListener('click', () => {
+      stopAllStreams();
+      status('disconnected');
+    });
+
+    // allow pressing Enter in source input to connect
+    sourceInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') connectBtn.click();
+    });
+
+    // initial sample fill to avoid empty geometry
+    for (let i=0;i<samples.length;i++) samples[i] = Math.sin(i/10) * 0.02;
+
+    // expose for debugging
+    window.__overlay = { pushSamples, startSSE, startPolling, stopAllStreams };
+  })();
+  </script>
+</body>
+</html>
