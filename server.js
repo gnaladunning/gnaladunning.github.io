@@ -1,125 +1,198 @@
 /**
- * Simple Node.js proxy that polls a remote URL and exposes a Server-Sent Events
- * stream at /sse?url=<encoded_remote_url>&interval=200
+ * server.js
+ * Simple local development proxy for CORS and SSE.
  *
- * Purpose: bypass CORS when the remote site (e.g., dataview.raspberryshake.org) blocks client-side requests.
+ * Endpoints:
+ *  - GET /proxy?url=<targetUrl>  -> forwards a GET request and streams response (adds CORS)
+ *  - GET /sse?url=<targetUrl>    -> opens a long-lived request to target and relays SSE chunks
  *
  * Usage:
- *   1. Install dependencies:
- *        npm init -y
- *        npm install express node-fetch@2 cors
+ *   npm install
+ *   node server.js
  *
- *   2. Run:
- *        node server.js
- *
- *   3. Open the web page and use:
- *        http://localhost:3000/sse?url=<ENCODED_REMOTE_URL>&interval=200
- *
- * This proxy performs simple polling and extracts numbers from the remote response text using a regex.
- * You should adapt the parser function if the remote endpoint returns structured JSON/HDF or needs authentication.
+ * Notes:
+ * - Node 18+ recommended (global fetch available). If using older Node, install node-fetch.
+ * - This is intended for local development only. Do NOT expose publicly without auth/rate-limiting.
  */
 
-const express = require('express');
-const fetch = require('node-fetch'); // v2
-const cors = require('cors');
-const { URL } = require('url');
+import express from 'express';
 
 const app = express();
-app.use(cors()); // allow requests from localhost page
 const PORT = process.env.PORT || 3000;
 
-function parseTextToNumbers(text) {
-  // Extract floats from arbitrary text (basic method).
-  // Modify this to suit the remote data format.
-  const re = /[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g;
-  const out = [];
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    out.push(parseFloat(m[0]));
+// Optional allowlist: comma-separated hostnames (no protocol). If empty, allow all.
+const ALLOWED_HOSTS = process.env.ALLOWED_HOSTS ? process.env.ALLOWED_HOSTS.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+// Simple check to prevent open proxy abuse
+function isHostAllowed(targetUrl) {
+  if (!ALLOWED_HOSTS || ALLOWED_HOSTS.length === 0) return true;
+  try {
+    const u = new URL(targetUrl);
+    return ALLOWED_HOSTS.includes(u.hostname);
+  } catch (e) {
+    return false;
   }
-  return out;
 }
 
-app.get('/sse', async (req, res) => {
-  const remote = req.query.url;
-  if (!remote) {
-    res.status(400).send('Missing url parameter. Example: /sse?url=https://example.com/data');
-    return;
-  }
-  let interval = parseInt(req.query.interval) || 200;
-  // Basic validation
-  try {
-    new URL(remote);
-  } catch (err) {
-    res.status(400).send('Invalid url parameter');
-    return;
-  }
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*'
-  });
-
-  let stopped = false;
-  req.on('close', () => {
-    stopped = true;
-  });
-
-  // Poll loop
-  async function pollLoop() {
-    while (!stopped) {
-      try {
-        const r = await fetch(remote, { timeout: 5000 });
-        if (!r.ok) {
-          // send an SSE comment to indicate non-OK
-          res.write(`: remote status ${r.status}\\n\\n`);
-        } else {
-          const ct = r.headers.get('content-type') || '';
-          if (ct.includes('application/json')) {
-            const j = await r.json();
-            // Basic attempt: if it's an array, send it; otherwise stringify and parse numbers
-            if (Array.isArray(j)) {
-              res.write(`data: ${JSON.stringify(j)}\\n\\n`);
-            } else if (j.samples && Array.isArray(j.samples)) {
-              res.write(`data: ${JSON.stringify(j.samples)}\\n\\n`);
-            } else {
-              const num = parseTextToNumbers(JSON.stringify(j));
-              res.write(`data: ${JSON.stringify(num)}\\n\\n`);
-            }
-          } else {
-            const txt = await r.text();
-            const nums = parseTextToNumbers(txt);
-            // If no numbers extracted, forward raw text as base64 (client can adapt)
-            if (nums.length === 0) {
-              const b64 = Buffer.from(txt).toString('base64');
-              res.write(`data: {"b64": "${b64}"}\\n\\n`);
-            } else {
-              res.write(`data: ${JSON.stringify(nums)}\\n\\n`);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Poll error', err && err.message);
-        res.write(`: poll error ${err && err.message}\\n\\n`);
-      }
-      // sleep for interval ms or exit earlier if stopped
-      const start = Date.now();
-      while (!stopped && Date.now() - start < interval) {
-        await new Promise(r => setTimeout(r, 50));
-      }
-    }
-    try { res.end(); } catch(e) {}
-  }
-
-  pollLoop();
+// Dev-friendly CORS for local usage
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
 });
 
-app.get('/', (req, res) => {
-  res.send('SSE proxy. Use /sse?url=<remote>&interval=200');
+// Health
+app.get('/ping', (req, res) => res.send('ok'));
+
+// Generic proxy: GET and stream response
+app.get('/proxy', async (req, res) => {
+  const target = req.query.url;
+  if (!target) return res.status(400).send('missing url query param');
+  if (!isHostAllowed(target)) return res.status(403).send('host not allowed');
+
+  try {
+    const remote = await fetch(target, { method: 'GET', cache: 'no-store' });
+
+    // Forward status and a safe subset of headers
+    res.status(remote.status);
+    const hopByHop = new Set([
+      'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+      'te', 'trailers', 'transfer-encoding', 'upgrade'
+    ]);
+    remote.headers.forEach((v, k) => {
+      if (!hopByHop.has(k.toLowerCase())) res.setHeader(k, v);
+    });
+
+    // Ensure browser can read it and disable caching
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+
+    // If no streaming body, send text
+    if (!remote.body) {
+      const t = await remote.text();
+      res.send(t);
+      return;
+    }
+
+    // Pipe readable stream to express response.
+    // In Node 18+, remote.body is a WHATWG ReadableStream; convert to Node stream.
+    const reader = remote.body.getReader();
+
+    const pump = async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!res.writableEnded) res.write(Buffer.from(value));
+          else break;
+        }
+      } catch (err) {
+        console.error('proxy pump error', err);
+      } finally {
+        try { res.end(); } catch (_) {}
+      }
+    };
+    pump();
+
+    // If client disconnects, cancel reading remote
+    req.on('close', () => {
+      try { reader.cancel(); } catch (_) {}
+    });
+  } catch (err) {
+    console.error('proxy error', err);
+    res.status(502).send('bad gateway: ' + String(err));
+  }
+});
+
+// SSE proxy: keep connection open and forward chunks raw
+app.get('/sse', async (req, res) => {
+  const target = req.query.url;
+  if (!target) return res.status(400).send('missing url query param');
+  if (!isHostAllowed(target)) return res.status(403).send('host not allowed');
+
+  try {
+    const remote = await fetch(target, {
+      method: 'GET',
+      headers: { Accept: 'text/event-stream' },
+      // If the target requires cookies/auth, you can pass credentials here (careful).
+    });
+
+    if (!remote.ok) {
+      res.status(remote.status);
+      const txt = await remote.text();
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(txt);
+      return;
+    }
+
+    // Relay SSE headers to client
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    if (!remote.body) {
+      res.end();
+      return;
+    }
+
+    const reader = remote.body.getReader();
+    const pump = async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!res.writableEnded) {
+            res.write(Buffer.from(value));
+          } else break;
+        }
+      } catch (err) {
+        console.error('sse pump error', err);
+      } finally {
+        try { res.end(); } catch (_) {}
+      }
+    };
+    pump();
+
+    req.on('close', () => {
+      try { reader.cancel(); } catch (_) {}
+    });
+  } catch (err) {
+    console.error('sse error', err);
+    res.status(502).send('bad gateway: ' + String(err));
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`SSE proxy listening on http://localhost:${PORT}`);
+  console.log(`Proxy listening on http://localhost:${PORT}`);
+  if (ALLOWED_HOSTS.length) console.log('Allowed hosts:', ALLOWED_HOSTS.join(', '));
 });
+````markdown name=README.md
+```markdown
+# Local dev proxy for gnaladunning.github.io
+
+This repository includes a small local proxy (server.js) used during development to:
+- Add CORS headers for cross-origin fetches
+- Expose remote SSE (text/event-stream) to browsers via a localhost endpoint
+- Avoid mixed-content issues when your page is served over HTTPS (localhost is a secure context)
+
+Quickstart
+1. Ensure Node 18+ is installed.
+2. From the repository root:
+   npm install
+3. Start the proxy:
+   node server.js
+4. Example usage from your page:
+   - SSE (forwarded): `http://localhost:3000/sse?url=http://rs.local/sse`
+   - Generic fetch: `http://localhost:3000/proxy?url=http://rs.local/data.json`
+
+Security notes
+- This proxy is intended for local development only. Do NOT run it exposed to the internet without adding authentication, logging, and rate limiting.
+- To limit which hosts can be proxied, set the ALLOWED_HOSTS environment variable to a comma-separated list of hostnames:
+  ALLOWED_HOSTS=rs.local,node.example.com node server.js
+- If you need HTTPS on the proxy, put it behind a reverse proxy that terminates TLS or generate a local certificate (mkcert) and run an HTTPS server.
+
+Files added
+- server.js — proxy implementation (requires package.json already added)
+- package.json — defines dependency on express (already added to repo)
+- README.md — this file
