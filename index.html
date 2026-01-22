@@ -84,6 +84,7 @@
       margin-top: 10px;
       font-size: 13px;
       color: #cbd5e1;
+      word-break: break-word;
     }
 
     .small {
@@ -141,11 +142,8 @@
     <div id="credits">Elevation: OpenTopoData (SRTM). 3D: three.js</div>
   </div>
 
-  <!-- three.js and OrbitControls from CDN -->
-  <script src="https://unpkg.com/three@0.162.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.162.0/examples/js/controls/OrbitControls.js"></script>
-
-  <script>
+  <!-- Load three.js + OrbitControls as modules for more reliable loading and clearer errors -->
+  <script type="module">
   (async function () {
     // Elements
     const video = document.getElementById('camera');
@@ -160,8 +158,22 @@
     const generateBtn = document.getElementById('generate');
 
     let currentCenter = null;
+    function setStatus(t) { statusEl.textContent = String(t); }
 
-    function setStatus(t) { statusEl.textContent = t; }
+    // Dynamically import three and OrbitControls and provide a helpful error on failure.
+    let THREE, OrbitControls;
+    try {
+      const threeModule = await import('https://unpkg.com/three@0.162.0/build/three.module.js');
+      THREE = threeModule;
+      const oc = await import('https://unpkg.com/three@0.162.0/examples/jsm/controls/OrbitControls.js');
+      OrbitControls = oc.OrbitControls;
+    } catch (err) {
+      console.error('3D library load failed', err);
+      setStatus('Failed to load 3D libraries (three.js). Check network or CDN. ' + (err.message || err));
+      // still allow camera to start; user will see a clear error if they try to generate overlay
+      THREE = null;
+      OrbitControls = null;
+    }
 
     // Start camera
     async function startCamera() {
@@ -174,7 +186,7 @@
         await video.play();
         setStatus('Camera active.');
         // Ensure overlay size matches video
-        resizeRenderer();
+        syncSizes();
       } catch (err) {
         console.error('Camera error', err);
         setStatus('Unable to access camera: ' + (err.message || err));
@@ -199,22 +211,33 @@
     // Elevation fetching using OpenTopoData (public)
     // API: https://api.opentopodata.org/v1/srtm90m?locations=lat,lon|lat,lon|...
     async function fetchElevations(locations) {
-      // locations: array of {lat, lon}
-      // chunk to avoid too-long URLs
-      const chunkSize = 160; // safe-ish
+      if (!locations || locations.length === 0) return [];
+      const chunkSize = 100; // avoid overly long URLs
       const all = [];
       for (let i = 0; i < locations.length; i += chunkSize) {
         const chunk = locations.slice(i, i + chunkSize);
         const param = chunk.map(p => `${p.lat},${p.lon}`).join('|');
         const url = `https://api.opentopodata.org/v1/srtm90m?locations=${encodeURIComponent(param)}`;
-        setStatus(`Fetching elevation data (${i}/${locations.length})...`);
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Elevation API error: ' + res.status);
-        const json = await res.json();
-        if (!json.results) throw new Error('Elevation API returned no results');
-        // results correspond to order of locations
+        setStatus(`Fetching elevation data (${i + chunk.length}/${locations.length})...`);
+        let res;
+        try {
+          res = await fetch(url);
+        } catch (err) {
+          throw new Error('Elevation API network error: ' + (err.message || err));
+        }
+        if (!res.ok) {
+          // return helpful message for common status codes
+          if (res.status === 429) throw new Error('Elevation API rate-limited (429). Try again later or reduce grid size.');
+          throw new Error('Elevation API error: ' + res.status + ' ' + res.statusText);
+        }
+        let json;
+        try {
+          json = await res.json();
+        } catch (err) {
+          throw new Error('Elevation API returned invalid JSON');
+        }
+        if (!json.results || !Array.isArray(json.results)) throw new Error('Elevation API returned unexpected response');
         all.push(...json.results.map(r => {
-          // some services return null for missing data
           return (r && (r.elevation !== null && r.elevation !== undefined)) ? r.elevation : 0;
         }));
         // gentle pacing
@@ -226,6 +249,9 @@
     // Build and render the heightmap with three.js
     let renderer, scene, camera, controls, mesh, animationId;
     function initThree() {
+      if (!THREE || !OrbitControls) {
+        throw new Error('3D libraries are not available. Reload the page or check network.');
+      }
       if (renderer) return;
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
       renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -233,7 +259,12 @@
       renderer.domElement.style.position = 'absolute';
       renderer.domElement.style.inset = '0';
       renderer.domElement.style.pointerEvents = 'none'; // allow clicks through
-      renderer.setClearAlpha(0); // transparent background
+      // ensure transparent background
+      if (typeof renderer.setClearAlpha === 'function') {
+        renderer.setClearAlpha(0);
+      } else {
+        renderer.setClearColor(0x000000, 0);
+      }
       overlay.appendChild(renderer.domElement);
 
       scene = new THREE.Scene();
@@ -241,7 +272,7 @@
       camera = new THREE.PerspectiveCamera(45, overlay.clientWidth / overlay.clientHeight, 0.1, 1000000);
       camera.position.set(0, 500, 1000);
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls = new OrbitControls(camera, renderer.domElement);
       controls.enablePan = false;
       controls.enableZoom = true;
       controls.maxPolarAngle = Math.PI / 2.1;
@@ -267,15 +298,20 @@
 
     function animate() {
       animationId = requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
     }
 
     function disposeMesh() {
       if (!mesh) return;
-      mesh.geometry.dispose();
-      mesh.material.dispose();
-      scene.remove(mesh);
+      try {
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose && m.dispose());
+          else mesh.material.dispose();
+        }
+      } catch (e) { /* ignore disposal errors */ }
+      if (scene && mesh) scene.remove(mesh);
       mesh = null;
     }
 
@@ -321,14 +357,28 @@
         }
 
         // fetch elevation values for all grid points
-        const elevations = await fetchElevations(locations);
+        let elevations;
+        try {
+          elevations = await fetchElevations(locations);
+        } catch (err) {
+          console.error('Elevation fetch failed', err);
+          setStatus('Elevation fetch failed: ' + (err.message || err));
+          return;
+        }
+
         if (!elevations || elevations.length < locations.length) {
           setStatus('Elevation fetch returned insufficient values.');
           return;
         }
 
         // initialize three and create the mesh
-        initThree();
+        try {
+          initThree();
+        } catch (err) {
+          console.error('Three initialization failed', err);
+          setStatus('3D initialization failed: ' + (err.message || err));
+          return;
+        }
 
         disposeMesh();
 
@@ -336,23 +386,23 @@
         const widthSegments = grid - 1;
         const heightSegments = grid - 1;
         const geometry = new THREE.PlaneGeometry(sizeMeters, sizeMeters, widthSegments, heightSegments);
-        // PlaneGeometry default: vertices in X (width) and Y (height), we will use Y as vertical displacement then rotate
         const pos = geometry.attributes.position;
-        // pos is interleaved array [x,y,z,x,y,z,...]
-        // We'll write vertical displacement into the Y component
+
         let minElev = Infinity, maxElev = -Infinity;
         for (let k = 0; k < elevations.length; k++) {
           const e = elevations[k];
           if (e < minElev) minElev = e;
           if (e > maxElev) maxElev = e;
         }
-        // optional: normalize around mean or min
         const base = minElev; // subtract base so heights start near zero
+
+        // PlaneGeometry has (widthSegments+1)*(heightSegments+1) vertices.
+        // We already constructed elevations in row-major order matching the nested loops above.
         for (let k = 0; k < elevations.length; k++) {
           const idx = k * 3;
-          // set Y to elevation delta * scale
           const y = (elevations[k] - base) * vscale;
-          pos.array[idx + 1] = y;
+          // Guard: do not write beyond array bounds
+          if (idx + 1 < pos.array.length) pos.array[idx + 1] = y;
         }
         pos.needsUpdate = true;
         geometry.computeVertexNormals();
@@ -407,9 +457,12 @@
     const ro = new ResizeObserver(syncSizes);
     ro.observe(document.getElementById('container'));
 
-    // touch friendly: allow the UI to be draggable a bit? (skipped)
     // initial message
-    setStatus('Ready. Allow camera access and click "Use my location" or enter coordinates, then "Generate Overlay".');
+    if (!THREE || !OrbitControls) {
+      setStatus('Partial setup: camera ready. 3D libraries failed to load; overlay generation will not work. Check network/CDN and reload.');
+    } else {
+      setStatus('Ready. Allow camera access and click "Use my location" or enter coordinates, then "Generate Overlay".');
+    }
   })();
   </script>
 </body>
