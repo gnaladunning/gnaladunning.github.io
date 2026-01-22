@@ -160,7 +160,7 @@
         <button id="generate" class="secondary">Generate Overlay</button>
       </div>
 
-      <div id="status">Ready.</div>
+      <div id="status">Ready. Allow camera access and click "Use my location" or enter coordinates (overlay will auto-generate when you finish typing).</div>
     </div>
 
     <div id="credits">Elevation: OpenTopoData (SRTM). 3D: three.js</div>
@@ -173,6 +173,7 @@
     // Elements
     const video = document.getElementById('camera');
     const overlay = document.getElementById('overlay');
+    const container = document.getElementById('container');
     const statusEl = document.getElementById('status');
     const toastEl = document.getElementById('toast');
     const latInput = document.getElementById('lat');
@@ -222,7 +223,7 @@
         video.srcObject = stream;
         await video.play();
         setStatus('Camera active.');
-        // Ensure overlay size matches video
+        // Ensure overlay size matches container/video
         syncSizes();
       } catch (err) {
         console.error('Camera error', err);
@@ -340,7 +341,12 @@
       if (renderer) return;
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
       renderer.setPixelRatio(window.devicePixelRatio || 1);
-      renderer.setSize(overlay.clientWidth, overlay.clientHeight);
+
+      // Use container size as a reliable fallback (video can be 0x0 during initialization)
+      const w = Math.max(1, overlay.clientWidth || container.clientWidth || window.innerWidth);
+      const h = Math.max(1, overlay.clientHeight || container.clientHeight || window.innerHeight);
+      renderer.setSize(w, h);
+
       renderer.domElement.style.position = 'absolute';
       renderer.domElement.style.inset = '0';
       renderer.domElement.style.pointerEvents = 'none'; // allow clicks through
@@ -354,7 +360,7 @@
 
       scene = new THREE.Scene();
 
-      camera = new THREE.PerspectiveCamera(45, overlay.clientWidth / overlay.clientHeight, 0.1, 1000000);
+      camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000000);
       camera.position.set(0, 500, 1000);
 
       controls = new OrbitControls(camera, renderer.domElement);
@@ -374,8 +380,8 @@
 
     function resizeRenderer() {
       if (!renderer || !camera) return;
-      const w = overlay.clientWidth;
-      const h = overlay.clientHeight;
+      const w = Math.max(1, overlay.clientWidth || container.clientWidth || window.innerWidth);
+      const h = Math.max(1, overlay.clientHeight || container.clientHeight || window.innerHeight);
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
@@ -500,8 +506,9 @@
         }
         const base = minElev; // subtract base so heights start near zero
 
+        // Write vertex heights into the Y component (so Y is elevation). Plane will be rotated to lie horizontally.
         // PlaneGeometry has (widthSegments+1)*(heightSegments+1) vertices.
-        // We already constructed elevations in row-major order matching the nested loops above.
+        // We created elevations in row-major order matching the nested loops above.
         for (let k = 0; k < elevations.length; k++) {
           const idx = k * 3;
           const y = (elevations[k] - base) * vscale;
@@ -534,11 +541,18 @@
 
         // adjust camera to see mesh
         camera.position.set(sizeMeters * 0.1, Math.max(sizeMeters * 0.3, 300), sizeMeters * 0.9);
+        // controls.target's Y should point at some fraction of elevation so mesh appears centered
         controls.target.set(0, Math.max((maxElev - base) * vscale * 0.4, 0), 0);
         controls.update();
 
         lastGeneratedCenter = { lat, lon };
-        setStatus(`Rendered ${grid}×${grid} heightmap (${Math.round(sizeMeters)} m). Elevation range: ${Math.round(minElev)} m to ${Math.round(maxElev)} m.`);
+
+        // If the elevation range is negligible, hint to user (common at sea level or very small areas)
+        if (Math.abs(maxElev - minElev) < 0.5) {
+          setStatus(`Rendered ${grid}×${grid} heightmap (${Math.round(sizeMeters)} m). Elevation appears nearly flat (range: ${Math.round(minElev)}–${Math.round(maxElev)} m). Try increasing area size or vertical scale to visualize subtle terrain.`);
+        } else {
+          setStatus(`Rendered ${grid}×${grid} heightmap (${Math.round(sizeMeters)} m). Elevation range: ${Math.round(minElev)} m to ${Math.round(maxElev)} m.`);
+        }
 
         // If autoInitiated (i.e. generated automatically after movement), show a subtle toast
         if (autoInitiated) toast('Overlay updated for new location');
@@ -637,687 +651,24 @@
     // Kick off camera as soon as possible
     startCamera();
 
-    // keep overlay size synced with video display
+    // keep overlay size synced with container
     function syncSizes() {
-      const rect = video.getBoundingClientRect();
-      // match overlay to container size & position (use container bounds when video not ready)
-      if (rect.width === 0 || rect.height === 0) {
-        const cRect = document.getElementById('container').getBoundingClientRect();
-        overlay.style.width = cRect.width + 'px';
-        overlay.style.height = cRect.height + 'px';
-        overlay.style.left = cRect.left + 'px';
-        overlay.style.top = cRect.top + 'px';
-      } else {
-        overlay.style.width = rect.width + 'px';
-        overlay.style.height = rect.height + 'px';
-        overlay.style.left = rect.left + 'px';
-        overlay.style.top = rect.top + 'px';
-      }
+      // Prefer the container's size to avoid 0x0 if video not yet ready
+      const cRect = container.getBoundingClientRect();
+      overlay.style.width = cRect.width + 'px';
+      overlay.style.height = cRect.height + 'px';
+      overlay.style.left = cRect.left + 'px';
+      overlay.style.top = cRect.top + 'px';
       if (renderer) resizeRenderer();
     }
     const ro = new ResizeObserver(syncSizes);
-    ro.observe(document.getElementById('container'));
+    ro.observe(container);
 
     // initial messaging
     if (!THREE || !OrbitControls) {
       setStatus('Partial setup: camera ready. 3D libraries failed to load; overlay generation will not work. Check network/CDN and reload.');
     } else {
-      setStatus('Ready. Allow camera access and click "Use my location" or enter coordinates (overlay will auto-generate when you finish typing). On first successful geolocation the UI will hide and the overlay will auto-generate.');
-    }
-
-    // cleanup on page hide/unload
-    window.addEventListener('pagehide', () => {
-      if (animationId) cancelAnimationFrame(animationId);
-      if (watchId != null) navigator.geolocation.clearWatch(watchId);
-      if (renderer && renderer.domElement && renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
-      }
-    });
-  })();
-  </script>
-</body>
-</html><!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Web3D Heightmap Overlay</title>
-  <style>
-    html,body {
-      height: 100%;
-      margin: 0;
-      background: #000;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      color: #fff;
-    }
-    #container {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-    }
-
-    video#camera {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1); /* mirror for a more "selfie" like feel; remove if undesired */
-    }
-
-    #overlay {
-      position: absolute;
-      inset: 0;
-      pointer-events: none; /* allow clicks to pass through to controls if needed */
-    }
-
-    #ui {
-      position: absolute;
-      right: 12px;
-      top: 12px;
-      width: 320px;
-      max-width: calc(100% - 24px);
-      background: rgba(0,0,0,0.45);
-      padding: 12px;
-      border-radius: 8px;
-      backdrop-filter: blur(6px);
-      pointer-events: auto; /* enable UI interaction */
-      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
-      transition: opacity 380ms ease, transform 380ms ease;
-    }
-
-    #ui.hidden {
-      opacity: 0;
-      transform: translateY(-8px) scale(0.995);
-      pointer-events: none;
-    }
-
-    #ui label { display:block; margin-top:8px; font-size:13px; color:#ddd }
-    #ui input[type="number"], #ui input[type="text"], #ui select {
-      width: 100%;
-      padding: 6px 8px;
-      margin-top: 4px;
-      border-radius: 6px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.02);
-      color: #fff;
-    }
-
-    #ui .controls {
-      display:flex;
-      gap:8px;
-      margin-top: 8px;
-    }
-
-    button {
-      background: #0ea5a4;
-      color: #002;
-      border: none;
-      padding: 8px 10px;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button.secondary {
-      background: #1f2937;
-      color: #fff;
-    }
-
-    #status {
-      margin-top: 10px;
-      font-size: 13px;
-      color: #cbd5e1;
-      word-break: break-word;
-    }
-
-    .small {
-      font-size: 12px;
-      color: #9ca3af;
-    }
-
-    #credits {
-      position: absolute;
-      left: 12px;
-      bottom: 12px;
-      background: rgba(0,0,0,0.35);
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 12px;
-      color: #dde;
-      pointer-events: none;
-    }
-
-    /* small toast for brief messages on iOS */
-    #toast {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      top: 12px;
-      background: rgba(0,0,0,0.6);
-      color: #fff;
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 13px;
-      display: none;
-      pointer-events: none;
-      z-index: 9999;
-    }
-    #toast.show { display: block; }
-  </style>
-</head>
-<body>
-  <div id="container">
-    <video id="camera" autoplay playsinline muted></video>
-    <div id="overlay"></div>
-
-    <div id="ui" aria-live="polite">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-weight:700">Heightmap Overlay</div>
-        <div class="small">uses OpenTopoData / fallback Open-Elevation</div>
-      </div>
-
-      <label>Center (lat, lon) — leave blank to use device geolocation</label>
-      <div style="display:flex;gap:8px">
-        <input id="lat" type="text" placeholder="Latitude (e.g. 37.7749)" />
-        <input id="lon" type="text" placeholder="Longitude (e.g. -122.4194)" />
-      </div>
-
-      <label>Area size (meters)</label>
-      <input id="size" type="number" value="1000" step="100" min="100" />
-
-      <label>Grid resolution (points per side)</label>
-      <input id="grid" type="number" value="32" min="3" max="128" />
-
-      <label>Vertical scale (multiplier)</label>
-      <input id="vscale" type="number" value="0.02" step="0.01" min="0.001" />
-
-      <div class="controls">
-        <button id="useLocation">Use my location</button>
-        <button id="generate" class="secondary">Generate Overlay</button>
-      </div>
-
-      <div id="status">Ready.</div>
-    </div>
-
-    <div id="credits">Elevation: OpenTopoData (SRTM). 3D: three.js</div>
-    <div id="toast" role="status" aria-live="polite"></div>
-  </div>
-
-  <!-- Load three.js + OrbitControls as modules for more reliable loading and clearer errors -->
-  <script type="module">
-  (async function () {
-    // Elements
-    const video = document.getElementById('camera');
-    const overlay = document.getElementById('overlay');
-    const statusEl = document.getElementById('status');
-    const toastEl = document.getElementById('toast');
-    const latInput = document.getElementById('lat');
-    const lonInput = document.getElementById('lon');
-    const sizeInput = document.getElementById('size');
-    const gridInput = document.getElementById('grid');
-    const vscaleInput = document.getElementById('vscale');
-    const useLocationBtn = document.getElementById('useLocation');
-    const generateBtn = document.getElementById('generate');
-    const ui = document.getElementById('ui');
-
-    let currentCenter = null;
-    let lastGeneratedCenter = null;
-    let watchId = null;
-    let isGenerating = false;
-    let autoGenTimer = null;
-
-    function setStatus(t) { statusEl.textContent = String(t); }
-    function toast(msg, ms = 2200) {
-      toastEl.textContent = msg;
-      toastEl.classList.add('show');
-      clearTimeout(toastEl._t);
-      toastEl._t = setTimeout(() => toastEl.classList.remove('show'), ms);
-    }
-
-    // Dynamically import three and OrbitControls and provide a helpful error on failure.
-    let THREE, OrbitControls;
-    try {
-      const threeModule = await import('https://unpkg.com/three@0.162.0/build/three.module.js');
-      THREE = threeModule;
-      const oc = await import('https://unpkg.com/three@0.162.0/examples/jsm/controls/OrbitControls.js');
-      OrbitControls = oc.OrbitControls;
-    } catch (err) {
-      console.error('3D library load failed', err);
-      setStatus('Failed to load 3D libraries (three.js). Check network or CDN. ' + (err.message || err));
-      THREE = null;
-      OrbitControls = null;
-    }
-
-    // Start camera
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false
-        });
-        video.srcObject = stream;
-        await video.play();
-        setStatus('Camera active.');
-        // Ensure overlay size matches video
-        syncSizes();
-      } catch (err) {
-        console.error('Camera error', err);
-        setStatus('Unable to access camera: ' + (err.message || err));
-      }
-    }
-
-    // Improved elevation fetching with retries + fallback
-    async function fetchElevations(locations) {
-      if (!locations || locations.length === 0) return [];
-      // Primary: OpenTopoData (GET), small chunk size to avoid long URLs
-      const openTopoChunk = 30;
-      const results = [];
-      let primaryFailed = false;
-
-      async function fetchChunkOpenTopo(chunk) {
-        const param = chunk.map(p => `${p.lat},${p.lon}`).join('|');
-        const url = `https://api.opentopodata.org/v1/srtm90m?locations=${encodeURIComponent(param)}`;
-        // per-chunk retry
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const ctrl = new AbortController();
-          const timeout = setTimeout(() => ctrl.abort(), 15000);
-          try {
-            setStatus(`Fetching elevation (OpenTopoData) ${results.length + 1}/${locations.length}...`);
-            const res = await fetch(url, { signal: ctrl.signal });
-            clearTimeout(timeout);
-            if (!res.ok) {
-              // 429 rate limit -> stop primary and fallback
-              if (res.status === 429) throw new Error('OpenTopoData rate limited (429)');
-              throw new Error(`OpenTopoData ${res.status} ${res.statusText}`);
-            }
-            const json = await res.json();
-            if (!json.results || !Array.isArray(json.results)) throw new Error('OpenTopoData returned unexpected response');
-            return json.results.map(r => (r && (r.elevation !== null && r.elevation !== undefined)) ? r.elevation : 0);
-          } catch (err) {
-            clearTimeout(timeout);
-            console.warn(`OpenTopoData chunk attempt ${attempt + 1} failed:`, err);
-            if (attempt < 2) {
-              await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt))); // backoff
-            } else {
-              throw err;
-            }
-          }
-        }
-      }
-
-      try {
-        for (let i = 0; i < locations.length; i += openTopoChunk) {
-          const chunk = locations.slice(i, i + openTopoChunk);
-          try {
-            const chunkVals = await fetchChunkOpenTopo(chunk);
-            results.push(...chunkVals);
-            // gentle pacing
-            await new Promise(r => setTimeout(r, 90));
-          } catch (err) {
-            // primary failed for a chunk -> mark primaryFailed and break to fallback
-            console.warn('OpenTopoData chunk failed, will attempt fallback:', err);
-            primaryFailed = true;
-            break;
-          }
-        }
-      } catch (err) {
-        primaryFailed = true;
-      }
-
-      if (!primaryFailed && results.length === locations.length) {
-        return results;
-      }
-
-      // Fallback: Open-Elevation (POST). This is slower but accepts POST of many points.
-      try {
-        setStatus('Primary elevation API failed or incomplete — trying fallback (Open-Elevation)...');
-        // Open-elevation expects { locations: [{latitude: ..., longitude: ...}, ...] }
-        // Chunk the fallback too to avoid huge payloads
-        const fallbackChunk = 200;
-        const fallbackResults = [];
-        for (let i = 0; i < locations.length; i += fallbackChunk) {
-          const chunk = locations.slice(i, i + fallbackChunk);
-          const body = { locations: chunk.map(p => ({ latitude: p.lat, longitude: p.lon })) };
-          const ctrl = new AbortController();
-          const timeout = setTimeout(() => ctrl.abort(), 20000);
-          let res;
-          try {
-            res = await fetch('https://api.open-elevation.com/api/v1/lookup', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-              signal: ctrl.signal
-            });
-            clearTimeout(timeout);
-          } catch (err) {
-            clearTimeout(timeout);
-            throw new Error('Open-Elevation network error: ' + (err.message || err));
-          }
-          if (!res.ok) throw new Error('Open-Elevation error: ' + res.status + ' ' + res.statusText);
-          const json = await res.json();
-          if (!json.results || !Array.isArray(json.results)) throw new Error('Open-Elevation returned unexpected response');
-          fallbackResults.push(...json.results.map(r => (r && (r.elevation !== null && r.elevation !== undefined)) ? r.elevation : 0));
-          await new Promise(r => setTimeout(r, 120));
-        }
-        if (fallbackResults.length === locations.length) return fallbackResults;
-        throw new Error('Fallback returned wrong number of elevations');
-      } catch (err) {
-        console.error('Elevation fallback failed', err);
-        throw err;
-      }
-    }
-
-    // Build and render the heightmap with three.js
-    let renderer, scene, camera, controls, mesh, animationId;
-    function initThree() {
-      if (!THREE || !OrbitControls) {
-        throw new Error('3D libraries are not available. Reload the page or check network.');
-      }
-      if (renderer) return;
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-      renderer.setPixelRatio(window.devicePixelRatio || 1);
-      renderer.setSize(overlay.clientWidth, overlay.clientHeight);
-      renderer.domElement.style.position = 'absolute';
-      renderer.domElement.style.inset = '0';
-      renderer.domElement.style.pointerEvents = 'none'; // allow clicks through
-      // ensure transparent background
-      if (typeof renderer.setClearAlpha === 'function') {
-        renderer.setClearAlpha(0);
-      } else {
-        renderer.setClearColor(0x000000, 0);
-      }
-      overlay.appendChild(renderer.domElement);
-
-      scene = new THREE.Scene();
-
-      camera = new THREE.PerspectiveCamera(45, overlay.clientWidth / overlay.clientHeight, 0.1, 1000000);
-      camera.position.set(0, 500, 1000);
-
-      controls = new OrbitControls(camera, renderer.domElement);
-      controls.enablePan = false;
-      controls.enableZoom = true;
-      controls.maxPolarAngle = Math.PI / 2.1;
-      controls.minDistance = 10;
-      controls.maxDistance = 5000;
-      controls.enabled = true;
-
-      const ambient = new THREE.AmbientLight(0xffffff, 0.85);
-      scene.add(ambient);
-
-      window.addEventListener('resize', resizeRenderer);
-      animate();
-    }
-
-    function resizeRenderer() {
-      if (!renderer || !camera) return;
-      const w = overlay.clientWidth;
-      const h = overlay.clientHeight;
-      renderer.setSize(w, h);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    }
-
-    function animate() {
-      animationId = requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
-    }
-
-    function disposeMesh() {
-      if (!mesh) return;
-      try {
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) {
-          if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose && m.dispose());
-          else mesh.material.dispose();
-        }
-      } catch (e) { /* ignore disposal errors */ }
-      if (scene && mesh) scene.remove(mesh);
-      mesh = null;
-    }
-
-    // Distance haversine in meters
-    function haversineDistance(a, b) {
-      if (!a || !b) return Infinity;
-      const R = 6371000;
-      const φ1 = a.lat * Math.PI / 180;
-      const φ2 = b.lat * Math.PI / 180;
-      const Δφ = (b.lat - a.lat) * Math.PI / 180;
-      const Δλ = (b.lon - a.lon) * Math.PI / 180;
-      const s = Math.sin(Δφ/2)*Math.sin(Δφ/2) + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)*Math.sin(Δλ/2);
-      const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
-      return R * c;
-    }
-
-    // Generate and display the heightmap (exposed as function for auto-generation)
-    async function generateOverlay({ autoInitiated = false } = {}) {
-      if (isGenerating) return;
-      isGenerating = true;
-      try {
-        setStatus('Preparing heightmap...');
-        // center from inputs or currentCenter
-        let lat = parseFloat(latInput.value);
-        let lon = parseFloat(lonInput.value);
-        if (isNaN(lat) || isNaN(lon)) {
-          if (currentCenter) { lat = currentCenter.lat; lon = currentCenter.lon; }
-          else {
-            setStatus('No center coordinates provided and geolocation not used. Click "Use my location" or enter lat/lon.');
-            isGenerating = false;
-            return;
-          }
-        } else {
-          currentCenter = { lat, lon };
-        }
-
-        const sizeMeters = Number(sizeInput.value) || 1000;
-        const grid = Math.max(3, Math.min(128, Number(gridInput.value) || 32));
-        const vscale = Number(vscaleInput.value) || 0.02;
-
-        setStatus(`Sampling ${grid}×${grid} grid over ${sizeMeters}m around ${lat.toFixed(6)}, ${lon.toFixed(6)}...`);
-
-        // compute grid of lat/lon
-        const metersPerDegLat = 111320; // roughly
-        const metersPerDegLon = 111320 * Math.cos(lat * Math.PI / 180);
-
-        const halfSizeDegLat = (sizeMeters / 2) / metersPerDegLat;
-        const halfSizeDegLon = (sizeMeters / 2) / metersPerDegLon;
-        const stepLat = (2 * halfSizeDegLat) / (grid - 1);
-        const stepLon = (2 * halfSizeDegLon) / (grid - 1);
-
-        const locations = [];
-        for (let j = 0; j < grid; j++) {
-          const latj = lat - halfSizeDegLat + j * stepLat;
-          for (let i = 0; i < grid; i++) {
-            const loni = lon - halfSizeDegLon + i * stepLon;
-            locations.push({ lat: latj, lon: loni });
-          }
-        }
-
-        // fetch elevation values for all grid points
-        let elevations;
-        try {
-          elevations = await fetchElevations(locations);
-        } catch (err) {
-          console.error('Elevation fetch failed', err);
-          setStatus('Elevation fetch failed: ' + (err.message || err));
-          isGenerating = false;
-          return;
-        }
-
-        if (!elevations || elevations.length < locations.length) {
-          setStatus('Elevation fetch returned insufficient values.');
-          isGenerating = false;
-          return;
-        }
-
-        // initialize three and create the mesh
-        try {
-          initThree();
-        } catch (err) {
-          console.error('Three initialization failed', err);
-          setStatus('3D initialization failed: ' + (err.message || err));
-          isGenerating = false;
-          return;
-        }
-
-        disposeMesh();
-
-        // Build plane geometry: width=sizeMeters, height=sizeMeters
-        const widthSegments = grid - 1;
-        const heightSegments = grid - 1;
-        const geometry = new THREE.PlaneGeometry(sizeMeters, sizeMeters, widthSegments, heightSegments);
-        const pos = geometry.attributes.position;
-
-        let minElev = Infinity, maxElev = -Infinity;
-        for (let k = 0; k < elevations.length; k++) {
-          const e = elevations[k];
-          if (e < minElev) minElev = e;
-          if (e > maxElev) maxElev = e;
-        }
-        const base = minElev; // subtract base so heights start near zero
-
-        // PlaneGeometry has (widthSegments+1)*(heightSegments+1) vertices.
-        // We already constructed elevations in row-major order matching the nested loops above.
-        for (let k = 0; k < elevations.length; k++) {
-          const idx = k * 3;
-          const y = (elevations[k] - base) * vscale;
-          // Guard: do not write beyond array bounds
-          if (idx + 1 < pos.array.length) pos.array[idx + 1] = y;
-        }
-        pos.needsUpdate = true;
-        geometry.computeVertexNormals();
-
-        // Wireframe material, transparent
-        const material = new THREE.MeshBasicMaterial({
-          color: 0x00ffd2,
-          wireframe: true,
-          transparent: true,
-          opacity: 0.65,
-          depthTest: true,
-          blending: THREE.NormalBlending,
-          side: THREE.DoubleSide
-        });
-
-        mesh = new THREE.Mesh(geometry, material);
-
-        // rotate so the plane lies flat (X,Z plane) and Y is up
-        mesh.rotation.x = -Math.PI / 2;
-
-        // position at origin (centered)
-        mesh.position.set(0, 0, 0);
-
-        scene.add(mesh);
-
-        // adjust camera to see mesh
-        camera.position.set(sizeMeters * 0.1, Math.max(sizeMeters * 0.3, 300), sizeMeters * 0.9);
-        controls.target.set(0, Math.max((maxElev - base) * vscale * 0.4, 0), 0);
-        controls.update();
-
-        lastGeneratedCenter = { lat, lon };
-        setStatus(`Rendered ${grid}×${grid} heightmap (${Math.round(sizeMeters)} m). Elevation range: ${Math.round(minElev)} m to ${Math.round(maxElev)} m.`);
-
-        // If autoInitiated (i.e. generated automatically after movement), show a subtle toast
-        if (autoInitiated) toast('Overlay updated for new location');
-      } catch (err) {
-        console.error(err);
-        setStatus('Error: ' + (err.message || err));
-      } finally {
-        isGenerating = false;
-      }
-    }
-
-    // Use geolocation to fill lat/lon and hide UI after first position; start watchPosition to update as device moves
-    useLocationBtn.addEventListener('click', async () => {
-      setStatus('Getting geolocation…');
-      if (!navigator.geolocation) { setStatus('Geolocation not available'); return; }
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const { latitude, longitude } = pos.coords;
-        latInput.value = latitude.toFixed(6);
-        lonInput.value = longitude.toFixed(6);
-        currentCenter = { lat: latitude, lon: longitude };
-        setStatus(`Location set to ${latitude.toFixed(6)}, ${longitude.toFixed(6)} — hiding UI.`);
-        // Hide UI once initial coordinates loaded (for iOS usage)
-        ui.classList.add('hidden');
-
-        // Kick off overlay generation automatically once initial position known
-        generateOverlay().catch(e => console.error(e));
-
-        // Start watching for device movement to update coordinates and refresh overlay when moved enough
-        startWatchPosition();
-      }, (err) => {
-        console.warn('Geolocation getCurrentPosition failed', err);
-        setStatus('Geolocation failed: ' + err.message);
-      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-    });
-
-    function startWatchPosition() {
-      if (!navigator.geolocation) return;
-      if (watchId != null) navigator.geolocation.clearWatch(watchId);
-      watchId = navigator.geolocation.watchPosition((pos) => {
-        const { latitude, longitude } = pos.coords;
-        const newCenter = { lat: latitude, lon: longitude };
-        // Update stored center and inputs (kept in sync even when UI hidden)
-        currentCenter = newCenter;
-        latInput.value = latitude.toFixed(6);
-        lonInput.value = longitude.toFixed(6);
-
-        // If we've generated before, and moved more than threshold, re-generate (debounced)
-        const thresholdMeters = 25; // regenerate when moved > 25 m
-        if (lastGeneratedCenter) {
-          const d = haversineDistance(lastGeneratedCenter, newCenter);
-          if (d > thresholdMeters) {
-            // debounce rapid updates
-            if (autoGenTimer) clearTimeout(autoGenTimer);
-            autoGenTimer = setTimeout(() => {
-              generateOverlay({ autoInitiated: true }).catch(e => console.error(e));
-            }, 1400); // short delay to avoid churn
-          }
-        }
-      }, (err) => {
-        console.warn('watchPosition error', err);
-        // only show non-blocking hint
-        setStatus('Location watch error: ' + (err.message || err.code));
-      }, { enableHighAccuracy: true, maximumAge: 1500, timeout: 20000 });
-    }
-
-    // Allow manual generate as well
-    generateBtn.addEventListener('click', async () => {
-      // If UI was hidden, show a tiny toast that manual regen is happening
-      if (ui.classList.contains('hidden')) toast('Regenerating overlay…');
-      await generateOverlay();
-    });
-
-    // Kick off camera as soon as possible
-    startCamera();
-
-    // keep overlay size synced with video display
-    function syncSizes() {
-      const rect = video.getBoundingClientRect();
-      // match overlay to container size & position (use container bounds when video not ready)
-      if (rect.width === 0 || rect.height === 0) {
-        const cRect = document.getElementById('container').getBoundingClientRect();
-        overlay.style.width = cRect.width + 'px';
-        overlay.style.height = cRect.height + 'px';
-        overlay.style.left = cRect.left + 'px';
-        overlay.style.top = cRect.top + 'px';
-      } else {
-        overlay.style.width = rect.width + 'px';
-        overlay.style.height = rect.height + 'px';
-        overlay.style.left = rect.left + 'px';
-        overlay.style.top = rect.top + 'px';
-      }
-      if (renderer) resizeRenderer();
-    }
-    const ro = new ResizeObserver(syncSizes);
-    ro.observe(document.getElementById('container'));
-
-    // initial messaging
-    if (!THREE || !OrbitControls) {
-      setStatus('Partial setup: camera ready. 3D libraries failed to load; overlay generation will not work. Check network/CDN and reload.');
-    } else {
-      setStatus('Ready. Allow camera access and click "Use my location" or enter coordinates, then "Generate Overlay". On first successful geolocation the UI will hide and the overlay will auto-generate. It will update automatically as you move.');
+      setStatus('Ready. Allow camera access and click "Use my location" or enter coordinates (overlay will auto-generate when you finish typing).');
     }
 
     // cleanup on page hide/unload
