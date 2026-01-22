@@ -1,1 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Web3D Heightmap Overlay</title>
+  <style>
+    html,body {
+      height: 100%;
+      margin: 0;
+      background: #000;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #fff;
+    }
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
 
+    video#camera {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* mirror for a more "selfie" like feel; remove if undesired */
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none; /* allow clicks to pass through to controls if needed */
+    }
+
+    #ui {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      width: 320px;
+      max-width: calc(100% - 24px);
+      background: rgba(0,0,0,0.45);
+      padding: 12px;
+      border-radius: 8px;
+      backdrop-filter: blur(6px);
+      pointer-events: auto; /* enable UI interaction */
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    }
+
+    #ui label { display:block; margin-top:8px; font-size:13px; color:#ddd }
+    #ui input[type="number"], #ui input[type="text"], #ui select {
+      width: 100%;
+      padding: 6px 8px;
+      margin-top: 4px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      color: #fff;
+    }
+
+    #ui .controls {
+      display:flex;
+      gap:8px;
+      margin-top: 8px;
+    }
+
+    button {
+      background: #0ea5a4;
+      color: #002;
+      border: none;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #1f2937;
+      color: #fff;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    #credits {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      background: rgba(0,0,0,0.35);
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #dde;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <video id="camera" autoplay playsinline muted></video>
+    <div id="overlay"></div>
+
+    <div id="ui" aria-live="polite">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:700">Heightmap Overlay</div>
+        <div class="small">uses OpenTopoData (SRTM)</div>
+      </div>
+
+      <label>Center (lat, lon) — leave blank to use device geolocation</label>
+      <div style="display:flex;gap:8px">
+        <input id="lat" type="text" placeholder="Latitude (e.g. 37.7749)" />
+        <input id="lon" type="text" placeholder="Longitude (e.g. -122.4194)" />
+      </div>
+
+      <label>Area size (meters)</label>
+      <input id="size" type="number" value="1000" step="100" min="100" />
+
+      <label>Grid resolution (points per side)</label>
+      <input id="grid" type="number" value="32" min="3" max="128" />
+
+      <label>Vertical scale (multiplier)</label>
+      <input id="vscale" type="number" value="0.02" step="0.01" min="0.001" />
+
+      <div class="controls">
+        <button id="useLocation">Use my location</button>
+        <button id="generate" class="secondary">Generate Overlay</button>
+      </div>
+
+      <div id="status">Ready.</div>
+    </div>
+
+    <div id="credits">Elevation: OpenTopoData (SRTM). 3D: three.js</div>
+  </div>
+
+  <!-- three.js and OrbitControls from CDN -->
+  <script src="https://unpkg.com/three@0.162.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.162.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+  (async function () {
+    // Elements
+    const video = document.getElementById('camera');
+    const overlay = document.getElementById('overlay');
+    const statusEl = document.getElementById('status');
+    const latInput = document.getElementById('lat');
+    const lonInput = document.getElementById('lon');
+    const sizeInput = document.getElementById('size');
+    const gridInput = document.getElementById('grid');
+    const vscaleInput = document.getElementById('vscale');
+    const useLocationBtn = document.getElementById('useLocation');
+    const generateBtn = document.getElementById('generate');
+
+    let currentCenter = null;
+
+    function setStatus(t) { statusEl.textContent = t; }
+
+    // Start camera
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        setStatus('Camera active.');
+        // Ensure overlay size matches video
+        resizeRenderer();
+      } catch (err) {
+        console.error('Camera error', err);
+        setStatus('Unable to access camera: ' + (err.message || err));
+      }
+    }
+
+    // Use geolocation to fill lat/lon
+    useLocationBtn.addEventListener('click', async () => {
+      setStatus('Getting geolocation…');
+      if (!navigator.geolocation) { setStatus('Geolocation not available'); return; }
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude } = pos.coords;
+        latInput.value = latitude.toFixed(6);
+        lonInput.value = longitude.toFixed(6);
+        currentCenter = { lat: latitude, lon: longitude };
+        setStatus(`Location set to ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+      }, (err) => {
+        setStatus('Geolocation failed: ' + err.message);
+      }, { enableHighAccuracy: true, timeout: 10000 });
+    });
+
+    // Elevation fetching using OpenTopoData (public)
+    // API: https://api.opentopodata.org/v1/srtm90m?locations=lat,lon|lat,lon|...
+    async function fetchElevations(locations) {
+      // locations: array of {lat, lon}
+      // chunk to avoid too-long URLs
+      const chunkSize = 160; // safe-ish
+      const all = [];
+      for (let i = 0; i < locations.length; i += chunkSize) {
+        const chunk = locations.slice(i, i + chunkSize);
+        const param = chunk.map(p => `${p.lat},${p.lon}`).join('|');
+        const url = `https://api.opentopodata.org/v1/srtm90m?locations=${encodeURIComponent(param)}`;
+        setStatus(`Fetching elevation data (${i}/${locations.length})...`);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Elevation API error: ' + res.status);
+        const json = await res.json();
+        if (!json.results) throw new Error('Elevation API returned no results');
+        // results correspond to order of locations
+        all.push(...json.results.map(r => {
+          // some services return null for missing data
+          return (r && (r.elevation !== null && r.elevation !== undefined)) ? r.elevation : 0;
+        }));
+        // gentle pacing
+        await new Promise(r => setTimeout(r, 120));
+      }
+      return all;
+    }
+
+    // Build and render the heightmap with three.js
+    let renderer, scene, camera, controls, mesh, animationId;
+    function initThree() {
+      if (renderer) return;
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      renderer.setSize(overlay.clientWidth, overlay.clientHeight);
+      renderer.domElement.style.position = 'absolute';
+      renderer.domElement.style.inset = '0';
+      renderer.domElement.style.pointerEvents = 'none'; // allow clicks through
+      renderer.setClearAlpha(0); // transparent background
+      overlay.appendChild(renderer.domElement);
+
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(45, overlay.clientWidth / overlay.clientHeight, 0.1, 1000000);
+      camera.position.set(0, 500, 1000);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enablePan = false;
+      controls.enableZoom = true;
+      controls.maxPolarAngle = Math.PI / 2.1;
+      controls.minDistance = 10;
+      controls.maxDistance = 5000;
+      controls.enabled = true;
+
+      const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+      scene.add(ambient);
+
+      window.addEventListener('resize', resizeRenderer);
+      animate();
+    }
+
+    function resizeRenderer() {
+      if (!renderer || !camera) return;
+      const w = overlay.clientWidth;
+      const h = overlay.clientHeight;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function disposeMesh() {
+      if (!mesh) return;
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+      scene.remove(mesh);
+      mesh = null;
+    }
+
+    // Generate and display the heightmap
+    generateBtn.addEventListener('click', async () => {
+      try {
+        setStatus('Preparing heightmap...');
+        // center from inputs or currentCenter
+        let lat = parseFloat(latInput.value);
+        let lon = parseFloat(lonInput.value);
+        if (isNaN(lat) || isNaN(lon)) {
+          if (currentCenter) { lat = currentCenter.lat; lon = currentCenter.lon; }
+          else {
+            setStatus('No center coordinates provided and geolocation not used. Click "Use my location" or enter lat/lon.');
+            return;
+          }
+        } else {
+          currentCenter = { lat, lon };
+        }
+
+        const sizeMeters = Number(sizeInput.value) || 1000;
+        const grid = Math.max(3, Math.min(128, Number(gridInput.value) || 32));
+        const vscale = Number(vscaleInput.value) || 0.02;
+
+        setStatus(`Sampling ${grid}×${grid} grid over ${sizeMeters}m around ${lat.toFixed(6)}, ${lon.toFixed(6)}...`);
+        // compute grid of lat/lon
+        // approximate conversions
+        const metersPerDegLat = 111320; // roughly
+        const metersPerDegLon = 111320 * Math.cos(lat * Math.PI / 180);
+
+        const halfSizeDegLat = (sizeMeters / 2) / metersPerDegLat;
+        const halfSizeDegLon = (sizeMeters / 2) / metersPerDegLon;
+        const stepLat = (2 * halfSizeDegLat) / (grid - 1);
+        const stepLon = (2 * halfSizeDegLon) / (grid - 1);
+
+        const locations = [];
+        for (let j = 0; j < grid; j++) {
+          const latj = lat - halfSizeDegLat + j * stepLat;
+          for (let i = 0; i < grid; i++) {
+            const loni = lon - halfSizeDegLon + i * stepLon;
+            locations.push({ lat: latj, lon: loni });
+          }
+        }
+
+        // fetch elevation values for all grid points
+        const elevations = await fetchElevations(locations);
+        if (!elevations || elevations.length < locations.length) {
+          setStatus('Elevation fetch returned insufficient values.');
+          return;
+        }
+
+        // initialize three and create the mesh
+        initThree();
+
+        disposeMesh();
+
+        // Build plane geometry: width=sizeMeters, height=sizeMeters
+        const widthSegments = grid - 1;
+        const heightSegments = grid - 1;
+        const geometry = new THREE.PlaneGeometry(sizeMeters, sizeMeters, widthSegments, heightSegments);
+        // PlaneGeometry default: vertices in X (width) and Y (height), we will use Y as vertical displacement then rotate
+        const pos = geometry.attributes.position;
+        // pos is interleaved array [x,y,z,x,y,z,...]
+        // We'll write vertical displacement into the Y component
+        let minElev = Infinity, maxElev = -Infinity;
+        for (let k = 0; k < elevations.length; k++) {
+          const e = elevations[k];
+          if (e < minElev) minElev = e;
+          if (e > maxElev) maxElev = e;
+        }
+        // optional: normalize around mean or min
+        const base = minElev; // subtract base so heights start near zero
+        for (let k = 0; k < elevations.length; k++) {
+          const idx = k * 3;
+          // set Y to elevation delta * scale
+          const y = (elevations[k] - base) * vscale;
+          pos.array[idx + 1] = y;
+        }
+        pos.needsUpdate = true;
+        geometry.computeVertexNormals();
+
+        // Wireframe material, transparent
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x00ffd2,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.65,
+          depthTest: true,
+          blending: THREE.NormalBlending,
+          side: THREE.DoubleSide
+        });
+
+        mesh = new THREE.Mesh(geometry, material);
+
+        // rotate so the plane lies flat (X,Z plane) and Y is up
+        mesh.rotation.x = -Math.PI / 2;
+
+        // position at origin (centered)
+        mesh.position.set(0, 0, 0);
+
+        scene.add(mesh);
+
+        // adjust camera to see mesh
+        const radius = Math.max(sizeMeters * 0.6, 200);
+        camera.position.set(sizeMeters * 0.1, Math.max(sizeMeters * 0.3, 300), sizeMeters * 0.9);
+        controls.target.set(0, Math.max((maxElev - base) * vscale * 0.4, 0), 0);
+        controls.update();
+
+        setStatus(`Rendered ${grid}×${grid} heightmap (${Math.round(sizeMeters)} m). Elevation range: ${Math.round(minElev)} m to ${Math.round(maxElev)} m.`);
+      } catch (err) {
+        console.error(err);
+        setStatus('Error: ' + (err.message || err));
+      }
+    });
+
+    // Kick off camera as soon as possible
+    startCamera();
+
+    // keep overlay size synced with video display
+    function syncSizes() {
+      const rect = video.getBoundingClientRect();
+      // match overlay to container size
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      if (renderer) resizeRenderer();
+    }
+    const ro = new ResizeObserver(syncSizes);
+    ro.observe(document.getElementById('container'));
+
+    // touch friendly: allow the UI to be draggable a bit? (skipped)
+    // initial message
+    setStatus('Ready. Allow camera access and click "Use my location" or enter coordinates, then "Generate Overlay".');
+  })();
+  </script>
+</body>
+</html>
