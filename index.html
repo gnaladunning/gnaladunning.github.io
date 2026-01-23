@@ -32,7 +32,7 @@
       <h1>SDR Sweeper</h1>
       <div class="controls">
         <label>WebSocket URL (SDR backend)</label>
-        <input id="wsUrl" type="text" value="ws://localhost:8888/" />
+        <input id="wsUrl" type="text" value="ws://sdr.websdrmaasbree.nl:8901/" />
 
         <label>Connection</label>
         <div class="row">
@@ -88,7 +88,7 @@
           <ul style="padding-left:18px;margin:6px 0 0 0">
             <li>Backend should accept WebSocket and expose spectrum data frames and tune commands.</li>
             <li>Server message format (recommended): JSON frames with type "spectrum": {type:"spectrum", centerFreq, sampleRate, bins: [magnitude floats], timestamp}</li>
-            <li>Client tune command (recommended): {type:"tune", frequency: <Hz>}</li>
+            <li>Client tune command (recommended): {type:"tune", frequency: &lt;Hz&gt;}</li>
             <li>If you don't have a backend enabled, click "Use Simulation".</li>
           </ul>
         </div>
@@ -119,16 +119,6 @@
 
   <script>
     // SDR Sweeper - single-file client
-    // How this works:
-    //  - Connect to a WebSocket backend that sends spectrum frames:
-    //      { type: "spectrum", centerFreq: number (Hz), sampleRate: number (Hz), bins: [float magnitudes], timestamp?: number }
-    //  - Client can request the backend to retune by sending:
-    //      { type: "tune", frequency: number (Hz) }
-    //  - If no backend is present, enable Simulation Mode which generates plausible spectra and accepts tune commands locally.
-    //
-    // Note: Typical setup: rtl_tcp or other SDR server -> small WebSocket proxy that maps JSON <-> rtl_tcp or remote API.
-    // Example simple protocol: send {"type":"tune","frequency":91500000} over the websocket to request tuning.
-
     (function(){
       const wsUrlEl = document.getElementById('wsUrl');
       const connectBtn = document.getElementById('connectBtn');
@@ -158,7 +148,8 @@
 
       let ws = null;
       let connected = false;
-      let autoReconnect = true;
+      // initialize autoReconnect from the checkbox state
+      let autoReconnect = autoConnectEl.checked;
       let usingSimulation = false;
 
       let latestCenter = 0;
@@ -179,31 +170,39 @@
       }
       wCtx.putImageData(wfImage,0,0);
 
+      // helpers
+      function normalizeWsUrl(url){
+        if(!url) return url;
+        const trimmed = url.trim();
+        if(trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) return trimmed;
+        if(trimmed.startsWith('http://')) return 'ws://' + trimmed.substring('http://'.length);
+        if(trimmed.startsWith('https://')) return 'wss://' + trimmed.substring('https://'.length);
+        // if it's a host:port form, try ws://
+        return trimmed;
+      }
+
       // Connect/disconnect handlers
       connectBtn.addEventListener('click', () => {
+        // stop simulation if running
+        if(usingSimulation) stopSimulation();
         usingSimulation = false;
-        connectWebSocket(wsUrlEl.value);
+        // ensure autoReconnect value up-to-date
+        autoReconnect = autoConnectEl.checked;
+        const url = normalizeWsUrl(wsUrlEl.value || '');
+        connectWebSocket(url);
       });
       disconnectBtn.addEventListener('click', () => {
         autoReconnect = false;
         if(ws) ws.close();
       });
 
-      simulateBtn.addEventListener('click', () => {
-        usingSimulation = !usingSimulation;
-        if(usingSimulation){
-          status('Using simulation mode — no network required');
-          if(ws){ ws.close(); ws = null; connected = false; }
-          displayCenter.value = '';
-          displaySampleRate.value = '';
-        } else {
-          status('Simulation off');
-        }
-      });
-
       autoConnectEl.addEventListener('change', () => autoReconnect = autoConnectEl.checked);
 
       function connectWebSocket(url){
+        if(!url){
+          status('No WebSocket URL provided');
+          return;
+        }
         if(ws){ try{ ws.close(); }catch(e){} ws=null; }
         status('Connecting to ' + url + ' ...');
         try {
@@ -267,8 +266,8 @@
           updateSpectrum(msg.centerFreq, msg.sampleRate, bins);
         } else if(msg.type === 'status'){
           // optional server status message
-          if(msg.centerFreq) displayCenter.value = msg.centerFreq.toLocaleString();
-          if(msg.sampleRate) displaySampleRate.value = msg.sampleRate.toLocaleString();
+          if(msg.centerFreq !== undefined) displayCenter.value = msg.centerFreq.toLocaleString();
+          if(msg.sampleRate !== undefined) displaySampleRate.value = msg.sampleRate.toLocaleString();
         } else if(msg.type === 'tuned'){
           // confirmation of tuning
           status('Server tuned to ' + (msg.frequency || '?') + ' Hz');
@@ -410,10 +409,8 @@
           const idx = x*4;
           row[idx] = color[0]; row[idx+1] = color[1]; row[idx+2] = color[2]; row[idx+3] = 255;
         }
-        // scroll existing image down by 1 pixel (or up depending on wfScroll)
-        // We'll scroll down (new row at top) to show recent at top
+        // scroll existing image down by 1 pixel (new row at top)
         const img = wCtx.getImageData(0,0,w,h);
-        // shift existing down by 1 pixel
         for(let y=h-1;y>=1;y--){
           const dest = y * w * 4;
           const src = (y-1) * w * 4;
@@ -513,6 +510,8 @@
       let simCenter = 95e6;
       function startSimulation(){
         usingSimulation = true;
+        // close any websocket so simulation is authoritative
+        if(ws){ try{ ws.close(); } catch(e){} ws = null; connected = false; }
         if(simTimer) clearInterval(simTimer);
         simTimer = setInterval(() => {
           // produce a set of bins with a few peaks around local signals
@@ -550,16 +549,18 @@
 
           updateSpectrum(simCenter, sr, bins);
         }, 150);
+        simulateBtn.textContent = 'Stop Simulation';
         status('Simulation running (generating spectrum locally)');
       }
       function stopSimulation(){
         usingSimulation = false;
         if(simTimer) clearInterval(simTimer);
         simTimer = null;
+        simulateBtn.textContent = 'Use Simulation';
+        status('Simulation stopped');
       }
 
       // Accept tune commands in simulation mode by changing simCenter
-      // We'll override sendTune to feed simulation
       const originalSendTune = sendTune;
       sendTune = function(freq){
         if(usingSimulation){
@@ -577,19 +578,16 @@
         try { ws.send(JSON.stringify(cmd)); } catch(e){ console.warn(e); }
       };
 
-      // Hook simulate button
+      // Hook simulate button (single, consolidated handler)
       simulateBtn.addEventListener('click', () => {
         if(usingSimulation){
           stopSimulation();
-          simulateBtn.textContent = 'Use Simulation';
         } else {
           startSimulation();
-          simulateBtn.textContent = 'Stop Simulation';
         }
       });
 
       // Start disconnected; optionally auto-connect on load if autoConnect flag is true
-      // expose a small helper console log
       window.SDRSweeper = {
         connect: connectWebSocket,
         disconnect: () => { if(ws) ws.close(); },
@@ -612,10 +610,6 @@
       }
       window.addEventListener('resize', fixCanvasResolution);
       fixCanvasResolution();
-
-      // initial simulation disabled
-      // If you want to autostart simulation for demo:
-      // startSimulation();
 
     })();
   </script>
