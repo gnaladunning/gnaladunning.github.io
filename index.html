@@ -1,1 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Contextual AR — object-aware descriptions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      touch-action: none;
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    #politicalCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 2;
+      pointer-events: none;
+      background: transparent;
+      object-fit: cover;
+      display: block;
+    }
+    #videoElement {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
+      background: #000;
+    }
+    #status {
+      position: fixed;
+      left: 12px;
+      bottom: 12px;
+      z-index: 3;
+      background: rgba(0,0,0,0.35);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      backdrop-filter: blur(6px);
+    }
+  </style>
+</head>
+<body>
+  <video id="videoElement" autoplay playsinline muted></video>
+  <canvas id="politicalCanvas"></canvas>
+  <div id="status">loading model...</div>
 
+  <!-- TensorFlow.js and coco-ssd model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+
+  <script>
+    // --- PARAMETERS ---
+    const PARAGRAPH_INTERVAL = 160000;
+    const APPEAR_DURATION = 30000;
+    const DISAPPEAR_DURATION = 2000;
+    const MAX_CLUSTERS = 5;
+    const FROZEN_DURATION = 3000;
+    const FROZEN_MIN_INTERVAL = 1000;
+    const FROZEN_MAX_INTERVAL = 10000;
+    const HISTORY_SIZE = 40;
+    const DETECTION_INTERVAL_MS = 600; // how often to run object detection
+
+    // DOM
+    const politicalCanvas = document.getElementById('politicalCanvas');
+    const video = document.getElementById('videoElement');
+    const ctx = politicalCanvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+
+    // --- STATE ---
+    let model = null;
+    let lastDetectionTime = 0;
+    let detectionResults = [];
+    let descriptionHistory = [];
+    let clusterStates = [];
+    let frozenState = { active: false, text: "", start: 0, end: 0 };
+    let nextFreezeTimeout = null;
+    let lastParagraphTrigger = Date.now();
+
+    // Load model
+    cocoSsd.load().then(m => {
+      model = m;
+      statusEl.textContent = 'model loaded';
+    }).catch(err => {
+      console.error('model load failed', err);
+      statusEl.textContent = 'model failed to load';
+    });
+
+    // --- UTILITIES ---
+    function pushHistory(desc) {
+      descriptionHistory.push(desc);
+      if (descriptionHistory.length > HISTORY_SIZE) descriptionHistory.shift();
+    }
+
+    function pickFrozenDescription() {
+      if (descriptionHistory.length === 0) return "a scene with objects in view";
+      return descriptionHistory[Math.floor(Math.random() * descriptionHistory.length)];
+    }
+
+    function wrapTextWords(text, maxWordsPerLine = 5, minWordsPerLine = 4) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let i = 0;
+      while (i < words.length) {
+        let numWords = Math.min(maxWordsPerLine, words.length - i);
+        if (numWords < minWordsPerLine && i !== 0) {
+          lines[lines.length - 1] += ' ' + words.slice(i).join(' ');
+          break;
+        }
+        lines.push(words.slice(i, i + numWords).join(' '));
+        i += numWords;
+      }
+      return lines;
+    }
+
+    // --- CONTEXTUAL DESCRIPTION GENERATOR (no external API required) ---
+    // Build neutral, lower-case, punctuation-free descriptions from detections
+    function generateContextualDescription(detections) {
+      if (!detections || detections.length === 0) {
+        const generic = [
+          "objects in frame catching the light",
+          "everyday scene with familiar items and people",
+          "a quiet moment captured in motion",
+          "shapes and forms composing a small story"
+        ];
+        const pick = generic[Math.floor(Math.random() * generic.length)];
+        pushHistory(pick);
+        return pick;
+      }
+
+      // choose top detections by score
+      const top = detections.slice().sort((a,b) => b.score - a.score).slice(0, 4);
+      const names = top.map(d => d.class.toLowerCase());
+      // dedupe preserving order
+      const unique = [...new Set(names)];
+
+      // helper: position words from bbox center
+      function positionWord(d) {
+        const cx = d.bbox[0] + d.bbox[2] / 2;
+        const xPct = cx / politicalCanvas.width;
+        if (xPct < 0.33) return "on the left";
+        if (xPct > 0.66) return "on the right";
+        return "in the middle";
+      }
+
+      // helper: size descriptor
+      function sizeWord(d) {
+        const area = d.bbox[2] * d.bbox[3];
+        const pxArea = area / (politicalCanvas.width * politicalCanvas.height);
+        if (pxArea < 0.015) return "small";
+        if (pxArea < 0.08) return "medium";
+        return "large";
+      }
+
+      let result = "";
+
+      if (unique.length === 1) {
+        const d = top[0];
+        result = `a ${sizeWord(d)} ${unique[0]} ${positionWord(d)}`;
+      } else if (unique.length === 2) {
+        const d1 = top[0], d2 = top[1];
+        result = `a ${sizeWord(d1)} ${unique[0]} ${positionWord(d1)} near a ${sizeWord(d2)} ${unique[1]} ${positionWord(d2)}`;
+      } else {
+        // for 3+ objects produce a short scene description combining 2-3 items
+        const parts = unique.slice(0, 3).map((name, idx) => {
+          const d = top[idx] || top[0];
+          return `${sizeWord(d)} ${name} ${positionWord(d)}`;
+        });
+        result = `a scene with ${parts.join(' , ')}`; // keep comma spacing but no periods
+        // remove accidental extra commas in output formatting step below
+      }
+
+      // normalize: lower-case, remove punctuation at end, avoid full stops
+      result = result.toLowerCase().replace(/[.]+$/g, '').trim();
+      result = result.replace(/\s*,\s*/g, ', ');
+
+      // also create some variety with a small set of flavor phrases
+      const flavors = [
+        "caught in a quiet moment",
+        "arranged by chance",
+        "sharing the frame together",
+        "composing a brief snapshot"
+      ];
+      if (Math.random() < 0.25) result = `${result} ${flavors[Math.floor(Math.random() * flavors.length)]}`;
+
+      pushHistory(result);
+      return result;
+    }
+
+    // --- CLUSTER / STATE MANAGEMENT using detection results ---
+    function detectionsToClusters(detections) {
+      // map detection bbox to canvas coordinates, create "clusters"
+      const clusters = [];
+      for (let i = 0; i < Math.min(detections.length, MAX_CLUSTERS); i++) {
+        const d = detections[i];
+        const [x, y, w, h] = d.bbox;
+        const center = [x + w / 2, y + h / 2];
+        const size = Math.sqrt(w * h) + (d.score * 100);
+        clusters.push({
+          center,
+          size,
+          detection: d
+        });
+      }
+      return clusters;
+    }
+
+    function clustersAreDifferent(currentCenters, prevCenters) {
+      if (currentCenters.length !== prevCenters.length) return true;
+      for (let i = 0; i < currentCenters.length; i++) {
+        if (!prevCenters[i] || Math.abs(currentCenters[i][0] - prevCenters[i][0]) > 40 || Math.abs(currentCenters[i][1] - prevCenters[i][1]) > 40) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function updateClustersFromDetections(detections, forceRefreshDescriptions = false) {
+      const now = Date.now();
+      const curr = detectionsToClusters(detections);
+      const currentCenters = curr.map(c => c.center);
+      // match to existing clusterStates by proximity
+      const newStates = [];
+      const matched = new Set();
+      for (let i = 0; i < curr.length; i++) {
+        const center = curr[i].center;
+        const size = curr[i].size;
+        const det = curr[i].detection;
+        let foundIdx = -1, minDist = Infinity;
+        for (let j = 0; j < clusterStates.length; j++) {
+          if (clusterStates[j].status === "disappearing") continue;
+          const prev = clusterStates[j];
+          const dist = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
+          if (dist < 80 && dist < minDist && !matched.has(j)) {
+            minDist = dist;
+            foundIdx = j;
+          }
+        }
+        if (foundIdx !== -1) {
+          const prev = clusterStates[foundIdx];
+          newStates.push({
+            ...prev,
+            center,
+            size,
+            detection: det,
+            status: "visible",
+            lastUpdate: now,
+            description: forceRefreshDescriptions ? generateContextualDescription(detections) : prev.description,
+            descLastChange: forceRefreshDescriptions ? now : prev.descLastChange
+          });
+          matched.add(foundIdx);
+        } else {
+          newStates.push({
+            center,
+            size,
+            detection: det,
+            description: generateContextualDescription(detections),
+            appearStart: now,
+            status: "appearing",
+            disappearStart: null,
+            depth: Math.random(),
+            lastUpdate: now
+          });
+        }
+      }
+
+      for (let j = 0; j < clusterStates.length; j++) {
+        if (matched.has(j)) continue;
+        const prev = clusterStates[j];
+        if (prev.status === "disappearing" && prev.disappearStart && Date.now() - prev.disappearStart < DISAPPEAR_DURATION) {
+          newStates.push(prev);
+        } else if (prev.status !== "disappearing") {
+          newStates.push({
+            ...prev,
+            status: "disappearing",
+            disappearStart: Date.now()
+          });
+        }
+      }
+
+      clusterStates = newStates.slice(0, MAX_CLUSTERS);
+      return currentCenters;
+    }
+
+    function updateDescriptionTransitions() {
+      const now = Date.now();
+      for (let cluster of clusterStates) {
+        if (cluster.status === "appearing" && cluster.appearStart) {
+          let t = (now - cluster.appearStart) / APPEAR_DURATION;
+          cluster.appearProgress = Math.min(1, t);
+          if (cluster.appearProgress >= 1) {
+            cluster.status = "visible";
+            cluster.appearStart = null;
+            cluster.appearProgress = 1;
+          }
+        }
+        if (cluster.status === "disappearing" && cluster.disappearStart) {
+          let t = (now - cluster.disappearStart) / DISAPPEAR_DURATION;
+          cluster.disappearProgress = Math.min(1, t);
+        }
+      }
+    }
+
+    // --- FROZEN DESCRIPTION SCHEDULING ---
+    function scheduleNextFreeze() {
+      const interval = Math.floor(Math.random() * (FROZEN_MAX_INTERVAL - FROZEN_MIN_INTERVAL + 1)) + FROZEN_MIN_INTERVAL;
+      nextFreezeTimeout = setTimeout(() => {
+        startFrozenDescription();
+      }, interval);
+    }
+
+    function startFrozenDescription() {
+      frozenState.active = true;
+      frozenState.text = pickFrozenDescription();
+      frozenState.start = Date.now();
+      frozenState.end = frozenState.start + FROZEN_DURATION;
+      setTimeout(() => {
+        frozenState.active = false;
+        scheduleNextFreeze();
+      }, FROZEN_DURATION);
+    }
+
+    // --- DRAW ---
+    function drawColorOverlays(ctx) {
+      updateDescriptionTransitions();
+      ctx.save();
+
+      // draw connecting spline between visible cluster centers (optional effect)
+      const centers = clusterStates.filter(c => c.status !== "disappearing" || (c.status === "disappearing" && (c.disappearProgress || 0) < 1)).map(c => c.center);
+      if (centers.length >= 2) {
+        ctx.beginPath();
+        ctx.strokeStyle = "#FF4141";
+        ctx.lineWidth = 2.2;
+        ctx.globalAlpha = 0.32;
+        for (let i = 0; i < centers.length - 1; i++) {
+          const [x1, y1] = centers[i];
+          const [x2, y2] = centers[i + 1];
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+
+      // draw bounding boxes for detections and text overlays
+      for (let i = 0; i < clusterStates.length; i++) {
+        const cluster = clusterStates[i];
+        const [x, y] = cluster.center;
+        const z = cluster.depth || 0;
+        const size = cluster.size;
+
+        // Compute font sizes similar to previous logic
+        let minFont = Math.max(18, Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 26));
+        let maxFont = Math.max(30, Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 12));
+        let norm = Math.max(0, Math.min(1, (size - 80) / (politicalCanvas.width * 0.12)));
+        let fontSize = Math.round(minFont + norm * (maxFont - minFont) * (1 - z * 0.5));
+        fontSize = Math.max(minFont, Math.min(maxFont, fontSize));
+
+        let appearAlpha = 1.0;
+        if (cluster.status === "appearing") appearAlpha = cluster.appearProgress || 0;
+        if (cluster.status === "disappearing") appearAlpha = 1 - (cluster.disappearProgress || 0);
+        let desc = cluster.description || "";
+
+        // Draw bbox (subtle) if detection info exists
+        if (cluster.detection && cluster.detection.bbox) {
+          const [bx, by, bw, bh] = cluster.detection.bbox;
+          ctx.save();
+          ctx.strokeStyle = "rgba(255,64,64," + (0.85 * appearAlpha) + ")";
+          ctx.lineWidth = Math.max(1.5, Math.round(fontSize / 12));
+          ctx.strokeRect(bx, by, bw, bh);
+          ctx.restore();
+        }
+
+        // draw paragraph-style text near center but nudged inward so it stays visible
+        ctx.save();
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.globalAlpha = 0.98 * appearAlpha;
+        ctx.fillStyle = "#FF2020";
+
+        const lines = wrapTextWords(desc, 5, 4);
+        let lineHeight = fontSize * 1.28;
+        let totalHeight = lineHeight * lines.length;
+
+        // Ensure text stays on screen: nudge if near edges
+        let drawX = x;
+        let drawY = y - totalHeight / 2;
+        // constrain
+        drawX = Math.max(politicalCanvas.width * 0.05, Math.min(politicalCanvas.width * 0.95, drawX));
+        drawY = Math.max(politicalCanvas.height * 0.06 + totalHeight / 2, Math.min(politicalCanvas.height * 0.94 - totalHeight / 2, drawY));
+
+        for (let j = 0; j < lines.length; j++) {
+          ctx.fillText(lines[j], drawX, drawY + (j - (lines.length - 1) / 2) * lineHeight);
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    function drawFrozenOverlay(ctx, text) {
+      let maxFont = Math.round(Math.min(politicalCanvas.width, politicalCanvas.height) / 12);
+      let minFont = 18;
+      let fontSize = maxFont;
+      let maxWidth = politicalCanvas.width * 0.95;
+      let maxHeight = politicalCanvas.height * 0.92;
+
+      let lines = wrapTextWords(text, 5, 1);
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      let fits = false;
+      while (!fits && fontSize >= minFont) {
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        let widest = Math.max(...lines.map(line => ctx.measureText(line).width));
+        let lineHeight = fontSize * 1.4;
+        let totalHeight = lineHeight * lines.length;
+        if (widest <= maxWidth && totalHeight <= maxHeight) {
+          fits = true;
+        } else {
+          if (lines.length < 8) {
+            lines = wrapTextWords(text, Math.max(2, 5 - lines.length), 1);
+          } else {
+            fontSize -= 2;
+          }
+        }
+      }
+
+      ctx.save();
+      ctx.globalAlpha = 1.0;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#FF2020";
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      let centerX = politicalCanvas.width / 2;
+      let centerY = politicalCanvas.height / 2;
+      let lineHeight = fontSize * 1.4;
+      for (let j = 0; j < lines.length; j++) {
+        ctx.fillText(lines[j], centerX, centerY + (j - (lines.length-1)/2) * lineHeight);
+      }
+      ctx.restore();
+    }
+
+    // --- MAIN LOOP ---
+    let prevClusterCenters = [];
+
+    function draw() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        // ensure canvas matches video resolution for detection mapping
+        if (politicalCanvas.width !== video.videoWidth || politicalCanvas.height !== video.videoHeight) {
+          politicalCanvas.width = video.videoWidth || window.innerWidth;
+          politicalCanvas.height = video.videoHeight || window.innerHeight;
+        }
+        // clear and draw video frame onto canvas as a working buffer
+        ctx.clearRect(0, 0, politicalCanvas.width, politicalCanvas.height);
+        ctx.drawImage(video, 0, 0, politicalCanvas.width, politicalCanvas.height);
+
+        if (frozenState.active) {
+          // when frozen, don't run detection overlays, draw frozen text
+          drawFrozenOverlay(ctx, frozenState.text);
+        } else {
+          // decide whether to run detection (slower) or reuse previous detections
+          const now = Date.now();
+          if (model && now - lastDetectionTime >= DETECTION_INTERVAL_MS) {
+            lastDetectionTime = now;
+            // run detection on the video element (tf model handles scaling)
+            model.detect(video).then(results => {
+              // filter reasonable results
+              detectionResults = results.filter(r => r.score >= 0.45);
+              // map bbox coordinates: coco-ssd returns bbox in pixels relative to video width/height
+              // generate contextual description from detections
+              const desc = generateContextualDescription(detectionResults);
+              statusEl.textContent = `detected: ${detectionResults.slice(0,4).map(r => r.class).join(', ') || 'none'} — ${desc}`;
+              // update clusters and optionally refresh descriptions if scene changed
+              const currentCenters = detectionResults.length ? detectionsToClusters(detectionResults).map(c => c.center) : [];
+              const forceRefresh = clustersAreDifferent(currentCenters, prevClusterCenters);
+              prevClusterCenters = currentCenters;
+              const centersFromUpdate = updateClustersFromDetections(detectionResults, forceRefresh || (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL));
+              if (forceRefresh || (Date.now() - lastParagraphTrigger >= PARAGRAPH_INTERVAL)) {
+                lastParagraphTrigger = Date.now();
+              }
+            }).catch(err => {
+              console.warn('detection error', err);
+              statusEl.textContent = 'detection error';
+            });
+          }
+          // draw overlays based on latest clusterStates
+          drawColorOverlays(ctx);
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    // --- CAMERA SETUP ---
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+          video.addEventListener('loadedmetadata', () => {
+            politicalCanvas.width = video.videoWidth || window.innerWidth;
+            politicalCanvas.height = video.videoHeight || window.innerHeight;
+            draw();
+            scheduleNextFreeze();
+            statusEl.textContent = 'ready';
+          });
+        })
+        .catch(err => {
+          console.error('camera error', err);
+          statusEl.textContent = 'camera unavailable';
+          alert('Camera access denied or unavailable.');
+        });
+    }
+
+    startCamera();
+
+    // --- RESIZE HANDLERS ---
+    window.addEventListener('resize', () => {
+      politicalCanvas.width = window.innerWidth;
+      politicalCanvas.height = window.innerHeight;
+    });
+
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        politicalCanvas.width = window.innerWidth;
+        politicalCanvas.height = window.innerHeight;
+      }, 500);
+    });
+
+    // --- NOTES / EXTENSION POINT ---
+    // This implementation generates contextual, neutral descriptions locally using detection results.
+    // If you want server/AI-generated text (richer, creative outputs), add a secure server endpoint that accepts
+    // a detection summary and returns a generated description. Do NOT embed secret API keys client-side.
+    //
+    // Example (server-side):
+    // fetch('/api/generate', { method: 'POST', body: JSON.stringify({ detections: [...] }) })
+    //   .then(r => r.json()).then(data => { cluster.description = data.text; pushHistory(data.text); });
+    //
+    // The local generator intentionally avoids strong claims, is lower-case, and omits periods to match earlier style.
+  </script>
+</body>
+</html>
